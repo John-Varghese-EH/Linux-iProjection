@@ -674,7 +674,7 @@ class MainWindow(Adw.ApplicationWindow):
             version=_get_version(),
             developer_name="John Varghese (J0X)",
             website="https://github.com/John-Varghese-EH",
-            issue_url="https://github.com/John-Varghese-EH/EPSON-iProjection-For-Linux/issues",
+            issue_url="https://github.com/John-Varghese-EH/Linux-iProjection/issues",
             license_type=Gtk.License.AGPL_3_0,
             comments="The ultimate, enterprise-grade controller for your Epson projector.\n"
             "Take complete command over network and mDNS projection. Features advanced diagnostic tools,\n"

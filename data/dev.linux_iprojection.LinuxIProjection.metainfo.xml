@@ -10,11 +10,11 @@
     <p>iProjection (Unofficial) (linux-iprojection) is a native Linux application built by John Varghese (J0X) to control and cast to Epson projectors seamlessly via the ESC/VP.net and EShare protocols.</p>
   </description>
   <url type="homepage">https://github.com/John-Varghese-EH</url>
-  <url type="bugtracker">https://github.com/John-Varghese-EH/EPSON-iProjection-For-Linux/issues</url>
+  <url type="bugtracker">https://github.com/John-Varghese-EH/Linux-iProjection/issues</url>
   <launchable type="desktop-id">dev.linux_iprojection.LinuxIProjection.desktop</launchable>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/John-Varghese-EH/EPSON-iProjection-For-Linux/main/docs/screenshot.png</image>
+      <image>https://raw.githubusercontent.com/John-Varghese-EH/Linux-iProjection/main/docs/screenshot.png</image>
     </screenshot>
   </screenshots>
   <content_rating type="oars-1.1"/>

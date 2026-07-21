@@ -27,8 +27,8 @@ dependencies = [
 dev = ["pytest", "pytest-asyncio", "ruff"]
 
 [project.urls]
-Homepage = "https://github.com/John-Varghese-EH/EPSON-iProjection-For-Linux"
-Issues = "https://github.com/John-Varghese-EH/EPSON-iProjection-For-Linux/issues"
+Homepage = "https://github.com/John-Varghese-EH/Linux-iProjection"
+Issues = "https://github.com/John-Varghese-EH/Linux-iProjection/issues"
 
 [project.scripts]
 linux-iprojection = "linux_iprojection.__main__:main"
