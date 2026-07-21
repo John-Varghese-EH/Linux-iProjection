@@ -1,0 +1,8 @@
+epsonctl (0.1.0-1) unstable; urgency=medium
+
+  * Initial release of iProjection (Unofficial) for Linux.
+  * Native GTK4/Libadwaita user interface.
+  * mDNS auto-discovery and PipeWire casting.
+  * Direct ESC/VP advanced console and Wake-on-LAN support.
+
+ -- John Varghese (J0X) <john@example.com>  Thu, 01 Jan 2026 00:00:00 +0000

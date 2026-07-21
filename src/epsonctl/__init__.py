@@ -1,0 +1,12 @@
+"""
+epsonctl - Epson projector control application
+Part of the iProjection (Unofficial) project by John Varghese (J0X)
+https://github.com/John-Varghese-EH
+"""
+
+import importlib.metadata
+
+try:
+    __version__ = importlib.metadata.version("epsonctl")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.1.0"

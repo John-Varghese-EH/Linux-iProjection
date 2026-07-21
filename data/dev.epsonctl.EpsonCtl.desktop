@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=iProjection (Unofficial)
+GenericName=Projector Control
+Comment=Control and cast to Epson projectors — by John Varghese (J0X)
+Exec=epsonctl
+Icon=dev.epsonctl.EpsonCtl
+Categories=AudioVideo;Video;Utility;GTK;
+Terminal=false
+StartupWMClass=dev.epsonctl.EpsonCtl
+Keywords=projector;epson;cast;mirror;screen;
+X-GNOME-UsesNotifications=true

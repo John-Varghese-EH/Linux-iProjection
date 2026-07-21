@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.epsonctl.EpsonCtl</id>
+  <name>iProjection (Unofficial)</name>
+  <summary>Control and cast to Epson projectors from Linux</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <developer_name>John Varghese (J0X)</developer_name>
+  <description>
+    <p>iProjection (Unofficial) (epsonctl) is a native Linux application built by John Varghese (J0X) to control and cast to Epson projectors seamlessly via the ESC/VP.net and EShare protocols.</p>
+  </description>
+  <url type="homepage">https://github.com/John-Varghese-EH</url>
+  <url type="bugtracker">https://github.com/John-Varghese-EH/EPSON-iProjection-For-Linux/issues</url>
+  <launchable type="desktop-id">dev.epsonctl.EpsonCtl.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/John-Varghese-EH/EPSON-iProjection-For-Linux/main/docs/screenshot.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-07-21">
+      <description>
+        <p>Initial release of iProjection (Unofficial).</p>
+      </description>
+    </release>
+  </releases>
+</component>

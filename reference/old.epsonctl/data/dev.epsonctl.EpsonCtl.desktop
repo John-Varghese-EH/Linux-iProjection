@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Epson Control
+Comment=Control and cast to Epson projectors over LAN
+Exec=epsonctl
+Icon=video-display-symbolic
+Categories=AudioVideo;Utility;
+Terminal=false
+StartupWMClass=dev.epsonctl.EpsonCtl

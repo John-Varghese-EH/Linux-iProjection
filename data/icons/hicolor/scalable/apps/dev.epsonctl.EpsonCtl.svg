@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- epsonctl — Built by John Varghese (J0X) | https://github.com/John-Varghese-EH -->
+
+<svg
+   viewBox="0 0 128 128"
+   width="128"
+   height="128"
+   version="1.1"
+   id="svg12"
+   sodipodi:docname="dev.epsonctl.EpsonCtl.svg"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview12"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="15.828083"
+     inkscape:cx="37.970487"
+     inkscape:cy="63.273615"
+     inkscape:window-width="1536"
+     inkscape:window-height="830"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg12" />
+  <defs
+     id="defs6">
+    <linearGradient
+       id="bg"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#3584e4"
+         id="stop1" />
+      <stop
+         offset="1"
+         stop-color="#1a5fb4"
+         id="stop2" />
+    </linearGradient>
+    <linearGradient
+       id="beam"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#ffffff"
+         stop-opacity="0.9"
+         id="stop3" />
+      <stop
+         offset="1"
+         stop-color="#99c1f1"
+         stop-opacity="0.3"
+         id="stop4" />
+    </linearGradient>
+    <linearGradient
+       id="body"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#f6f5f4"
+         id="stop5" />
+      <stop
+         offset="1"
+         stop-color="#deddda"
+         id="stop6" />
+    </linearGradient>
+  </defs>
+  <!-- Background rounded square (GNOME HIG) -->
+  <rect
+     width="128"
+     height="128"
+     rx="28"
+     fill="url(#bg)"
+     id="rect6" />
+  <!-- Light beam (projecting to the right) -->
+  <polygon
+     points="80,52 116,30 116,98 80,76"
+     fill="url(#beam)"
+     id="polygon6" />
+  <!-- Projector body -->
+  <rect
+     x="22"
+     y="46"
+     width="60"
+     height="36"
+     rx="6"
+     fill="url(#body)"
+     id="rect7" />
+  <!-- Lens -->
+  <circle
+     cx="74"
+     cy="64"
+     r="10"
+     fill="#1a5fb4"
+     stroke="#f6f5f4"
+     stroke-width="2"
+     id="circle7" />
+  <circle
+     cx="74"
+     cy="64"
+     r="5"
+     fill="#3584e4"
+     id="circle8" />
+  <!-- Vent lines -->
+  <rect
+     x="28.126358"
+     y="52.230991"
+     width="20"
+     height="2"
+     rx="1"
+     fill="#c0bfbc"
+     id="rect8" />
+  <rect
+     x="28.126358"
+     y="58.230991"
+     width="20"
+     height="2"
+     rx="1"
+     fill="#c0bfbc"
+     id="rect9" />
+  <rect
+     x="28.126358"
+     y="64.230995"
+     width="20"
+     height="2"
+     rx="1"
+     fill="#c0bfbc"
+     id="rect10" />
+  <!-- Feet -->
+  <rect
+     x="30"
+     y="82"
+     width="10"
+     height="6"
+     rx="2"
+     fill="#f6f5f4"
+     id="rect11" />
+  <rect
+     x="60"
+     y="82"
+     width="10"
+     height="6"
+     rx="2"
+     fill="#f6f5f4"
+     id="rect12" />
+  <text
+     xml:space="preserve"
+     style="font-weight:bold;font-size:10.66666667px;line-height:0;font-family:'Adwaita Sans';-inkscape-font-specification:'Adwaita Sans Bold';writing-mode:lr-tb;direction:ltr;fill:#1a1a1a"
+     x="30.288492"
+     y="76.551056"
+     id="text12"><tspan
+       sodipodi:role="line"
+       id="tspan12"></tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-weight:bold;font-size:10.3316px;line-height:0;font-family:'Adwaita Sans';-inkscape-font-specification:'Adwaita Sans Bold';writing-mode:lr-tb;direction:ltr;fill:#1a1a1a;stroke-width:0.968575"
+     x="26.430473"
+     y="81.092896"
+     id="text13"
+     transform="scale(1.0501679,0.95222869)"><tspan
+       sodipodi:role="line"
+       id="tspan13"
+       x="26.430473"
+       y="81.092896"
+       style="fill:#666666;stroke-width:0.968575">J0X</tspan></text>
+</svg>

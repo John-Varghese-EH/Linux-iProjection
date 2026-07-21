@@ -1,0 +1,52 @@
+# epsonctl — Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
+[project]
+name = "epsonctl"
+version = "0.1.0"
+description = "Native Linux control & casting app for Epson projectors (ESC/VP.net + EShare)"
+readme = "README.md"
+license = {text = "AGPL-3.0-or-later"}
+requires-python = ">=3.10"
+authors = [
+    {name = "John Varghese (J0X)", email = "john@example.com"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications :: GTK",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Video :: Display",
+]
+dependencies = [
+    "PyGObject>=3.46",   # GTK4 + libadwaita bindings
+    "zeroconf>=0.132",   # mDNS discovery of projectors on the LAN
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "ruff"]
+
+[project.urls]
+Homepage = "https://github.com/John-Varghese-EH/EPSON-iProjection-For-Linux"
+Issues = "https://github.com/John-Varghese-EH/EPSON-iProjection-For-Linux/issues"
+
+[project.scripts]
+epsonctl = "epsonctl.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
