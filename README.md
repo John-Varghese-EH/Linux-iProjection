@@ -10,8 +10,6 @@
 
 ---
 
-Hey, I'm **John Varghese (J0X)**.
-
 I built this application because I was frustrated by the lack of native, robust Linux support for Epson's enterprise hardware. In professional IT environments, you need seamless control, instant diagnostics, and the ability to cast your screen without fighting proprietary drivers. 
 
 **iProjection for Linux** bridges that gap. It gives you complete command over network and mDNS projection using native Linux technologies, packaged in a sleek, responsive GTK4 design.

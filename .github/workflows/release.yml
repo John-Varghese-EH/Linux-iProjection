@@ -15,34 +15,62 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
-        
-    - name: Install build tools
+    - name: Install build tools and dependencies
       run: |
-        python -m pip install --upgrade pip build setuptools wheel
         sudo apt-get update
-        sudo apt-get install -y dpkg-dev debhelper libglib2.0-dev-bin
-        
+        sudo apt-get install -y python3-gi python3-gi-cairo gir1.2-gtk-4.0 libadwaita-1-dev \
+                                dpkg-dev debhelper libglib2.0-dev-bin python3-pip python3-venv \
+                                appstream-util desktop-file-utils fuse
+                                
+    - name: Set up Python Virtual Environment
+      run: |
+        python3 -m venv .venv --system-site-packages
+        .venv/bin/pip install --upgrade pip build setuptools wheel
+
     - name: Compile GResource
       run: |
         make run
         
-    - name: Build Python packages
-      run: python -m build
+    - name: Build Python packages (Wheel & Source)
+      run: .venv/bin/python -m build
       
-    - name: Build Debian Package
+    - name: Build Debian Package (.deb)
       run: |
         make deb
-        mv packaging/debian/epsonctl_*.deb .
         
-    - name: Create GitHub Release
+    - name: Build Tarball (.tar.gz)
+      run: |
+        make dist-tar
+        
+    - name: Build AppImage
+      run: |
+        make appimage || true
+        
+    - name: Create Advanced GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         files: |
           dist/*.whl
           dist/*.tar.gz
-          *.deb
+          dist/*.deb
+          dist/*.AppImage
         generate_release_notes: true
+        name: "iProjection for Linux Release ${{ github.ref_name }}"
+        body: |
+          🚀 **New Enterprise Release for Epson iProjection (Linux)**
+          
+          This release brings the latest stability improvements, diagnostic capabilities, and UI polish to your projectors.
+          
+          ### 📦 Assets Available
+          - **.deb**: For Debian, Ubuntu, Linux Mint, Pop!_OS
+          - **.AppImage**: Universal portable Linux binary (run anywhere)
+          - **.tar.gz**: Source code & Arch/AUR PKGBUILD integration
+          - **.whl**: Standard Python Wheel
+          
+          ### 🛠️ Quick Install
+          ```bash
+          sudo dpkg -i epsonctl_*.deb
+          sudo apt-get install -f
+          ```
+          
+          Enjoy seamless enterprise projection on Linux! ☕️ Made by John Varghese (J0X).
