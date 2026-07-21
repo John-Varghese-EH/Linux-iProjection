@@ -1,5 +1,5 @@
 """
-network_scanner.py — Subnet Port-Scan Fallback Discovery Backend
+network_scanner.py - Subnet Port-Scan Fallback Discovery Backend
 ================================================================
 
 When mDNS and SSDP miss a device (e.g., it is behind a router that blocks
@@ -12,7 +12,7 @@ Implementation notes
 - Falls back to ``/24`` guessing if ``netifaces`` is unavailable.
 - Scanning is done with raw Python sockets (no nmap dependency) using a
   thread pool for speed.
-- The scan is intentionally conservative — connect timeout is short and we
+- The scan is intentionally conservative - connect timeout is short and we
   only probe two ports per host.
 
 Thread safety
@@ -47,7 +47,7 @@ PROBE_PORTS: list[tuple[int, str]] = [
     (56789, "eshare"),    # EShare primary port
 ]
 
-CONNECT_TIMEOUT = 0.5   # seconds — keep this short for a full /24 scan
+CONNECT_TIMEOUT = 0.5   # seconds - keep this short for a full /24 scan
 DEFAULT_WORKERS = 50    # concurrent connection attempts
 
 
@@ -83,7 +83,7 @@ def _get_local_subnets() -> list[str]:
                     pass
         return subnets or _fallback_subnet()
     except ImportError:
-        log.warning("netifaces / netifaces2 not installed — using fallback subnet detection")
+        log.warning("netifaces / netifaces2 not installed - using fallback subnet detection")
         return _fallback_subnet()
 
 
@@ -173,7 +173,7 @@ class NetworkScanner:
     def scan(self) -> None:
         """Start a background scan sweep (non-blocking)."""
         if self._thread and self._thread.is_alive():
-            log.debug("Scan already in progress — ignoring duplicate call.")
+            log.debug("Scan already in progress - ignoring duplicate call.")
             return
         self._stop_event.clear()
         self._thread = threading.Thread(
@@ -195,7 +195,7 @@ class NetworkScanner:
 
     def _run(self) -> None:
         subnets = [self._subnet] if self._subnet else _get_local_subnets()
-        log.info("Network scan starting — subnets: %s, workers: %d",
+        log.info("Network scan starting - subnets: %s, workers: %d",
                  subnets, self._max_workers)
 
         for subnet_cidr in subnets:
@@ -213,7 +213,7 @@ class NetworkScanner:
             return
 
         hosts = list(network.hosts())
-        log.info("Scanning %s — %d hosts …", subnet_cidr, len(hosts))
+        log.info("Scanning %s - %d hosts …", subnet_cidr, len(hosts))
 
         with ThreadPoolExecutor(max_workers=self._max_workers) as pool:
             futures = {
@@ -235,7 +235,7 @@ class NetworkScanner:
                     found += 1
                     self._on_found(device)
 
-        log.info("Subnet %s done — %d device(s) found.", subnet_cidr, found)
+        log.info("Subnet %s done - %d device(s) found.", subnet_cidr, found)
 
 
 # ── Standalone CLI ────────────────────────────────────────────────────────────
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     import time
 
     logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s %(levelname)-8s %(name)s — %(message)s")
+                        format="%(asctime)s %(levelname)-8s %(name)s - %(message)s")
 
     parser = argparse.ArgumentParser(description="Subnet port scan for projectors.")
     parser.add_argument("--subnet",  default=None, help="CIDR e.g. 192.168.1.0/24")

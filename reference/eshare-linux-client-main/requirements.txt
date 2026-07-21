@@ -1,4 +1,4 @@
-# linux-iprojection — Python Requirements
+# linux-iprojection - Python Requirements
 # =========================================
 #
 # ✅ WINDOWS-SAFE (pip install works on all platforms)
@@ -17,7 +17,7 @@ zeroconf>=0.128.0          # mDNS / DNS-SD (python-zeroconf)
 netifaces2>=0.0.19         # Pure-Python drop-in replacement for netifaces (Windows + Linux)
 
 # ── Device control (Windows + Linux) ─────────────────────────────────────────
-# (ESC/VP.net and PJLink use asyncio TCP — no extra deps)
+# (ESC/VP.net and PJLink use asyncio TCP - no extra deps)
 
 # ── DBus / Portal (Linux only, but pip-installable stub is safe on Windows) ──
 dasbus>=1.7                # xdg-desktop-portal DBus client (used only on Linux)

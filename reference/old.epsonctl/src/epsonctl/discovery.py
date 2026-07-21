@@ -7,7 +7,7 @@ Two strategies, used together:
    mDNS service type Epson's EShare receivers advertise (the referenced
    `eshare-linux-client` project presumably found this by packet capture).
    Once you have the repo cloned, grep its source for the `ServiceBrowser`
-   / service-type string it uses and drop it into SERVICE_TYPES below —
+   / service-type string it uses and drop it into SERVICE_TYPES below -
    I don't want to guess a string here and have it silently discover
    nothing. `_projector._tcp.local.` and `_eshare._tcp.local.` below are
    placeholders to replace once confirmed.
@@ -33,7 +33,7 @@ from .protocol import ESCVP_PORT
 
 log = logging.getLogger(__name__)
 
-# Placeholders — replace once confirmed from the reference client's source.
+# Placeholders - replace once confirmed from the reference client's source.
 SERVICE_TYPES = [
     "_projector._tcp.local.",
     "_eshare._tcp.local.",
@@ -129,7 +129,7 @@ async def discover_by_scan(
 ) -> list[DiscoveredDevice]:
     networks = [network] if network else _local_ipv4_networks()
     if not networks:
-        log.warning("Could not determine local subnet — enter the projector IP manually")
+        log.warning("Could not determine local subnet - enter the projector IP manually")
         return []
 
     sem = asyncio.Semaphore(SCAN_CONCURRENCY)

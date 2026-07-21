@@ -1,4 +1,4 @@
-pkgname=epsonctl
+pkgname=linux-iprojection
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Native Linux control & casting app for Epson projectors"
@@ -7,7 +7,7 @@ url="https://github.com/John-Varghese-EH/EPSON-iProjection-For-Linux"
 license=('AGPL3')
 depends=('python' 'python-gobject' 'python-zeroconf' 'gtk4' 'libadwaita')
 makedepends=('python-build' 'python-installer' 'python-wheel' 'python-setuptools')
-source=("$pkgname-$pkgver.tar.gz")
+source=("$url/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz")
 sha256sums=('SKIP')
 
 build() {
@@ -20,8 +20,8 @@ package() {
   python -m installer --destdir="$pkgdir" dist/*.whl
 
   # Install desktop file and icon
-  install -Dm644 data/dev.epsonctl.EpsonCtl.desktop "$pkgdir/usr/share/applications/dev.epsonctl.EpsonCtl.desktop"
-  install -Dm644 data/icons/hicolor/scalable/apps/dev.epsonctl.EpsonCtl.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/dev.epsonctl.EpsonCtl.svg"
-  install -Dm644 data/dev.epsonctl.EpsonCtl.metainfo.xml "$pkgdir/usr/share/metainfo/dev.epsonctl.EpsonCtl.metainfo.xml"
-  install -Dm644 data/epsonctl.gresource "$pkgdir/usr/share/epsonctl/epsonctl.gresource"
+  install -Dm644 data/dev.linux_iprojection.LinuxIProjection.desktop "$pkgdir/usr/share/applications/dev.linux_iprojection.LinuxIProjection.desktop"
+  install -Dm644 data/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg"
+  install -Dm644 data/dev.linux_iprojection.LinuxIProjection.metainfo.xml "$pkgdir/usr/share/metainfo/dev.linux_iprojection.LinuxIProjection.metainfo.xml"
+  install -Dm644 data/linux_iprojection.gresource "$pkgdir/usr/share/linux-iprojection/linux_iprojection.gresource"
 }

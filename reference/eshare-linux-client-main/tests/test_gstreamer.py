@@ -1,5 +1,5 @@
 """
-test_gstreamer.py — Unit tests for the GStreamer pipeline module
+test_gstreamer.py - Unit tests for the GStreamer pipeline module
 ================================================================
 
 These tests do NOT start a real GStreamer pipeline (that would require

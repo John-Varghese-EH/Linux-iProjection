@@ -1,12 +1,12 @@
-# epsonctl — Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
-"""Unit tests for epsonctl.protocol (EscVpNetClient).
+# linux-iprojection - Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
+"""Unit tests for linux_iprojection.protocol (EscVpNetClient).
 
-Uses the fake TCP server from conftest.py — no real projector needed.
+Uses the fake TCP server from conftest.py - no real projector needed.
 """
 
 import pytest
 
-from epsonctl.protocol import (
+from linux_iprojection.protocol import (
     EscVpNetClient,
     ProjectorError,
     ProjectorUnreachableError,
@@ -34,7 +34,7 @@ async def test_handshake_failure(bad_handshake_server):
 async def test_connection_refused():
     """Connecting to a port with no server should raise after retries."""
     with pytest.raises((ProjectorError, ProjectorUnreachableError)):
-        async with EscVpNetClient("127.0.0.1", 1):  # Port 1 — nothing there
+        async with EscVpNetClient("127.0.0.1", 1):  # Port 1 - nothing there
             pass
 
 

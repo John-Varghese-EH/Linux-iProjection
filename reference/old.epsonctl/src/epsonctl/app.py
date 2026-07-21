@@ -1,5 +1,5 @@
 """
-epsonctl — main application.
+epsonctl - main application.
 
 GTK4 + libadwaita, run under an asyncio-friendly GLib main loop via
 `gbulb` -- avoided here to keep the dependency list small: instead we run
@@ -37,7 +37,7 @@ def _run_async(coro):
         try:
             result = asyncio.run(coro)
             error = None
-        except Exception as e:  # noqa: BLE001 — surfaced to the UI
+        except Exception as e:  # noqa: BLE001 - surfaced to the UI
             result, error = None, e
         return result, error
 
@@ -163,14 +163,14 @@ class MainWindow(Adw.ApplicationWindow):
         box.append(mute_group)
 
         status_group = Adw.PreferencesGroup(title="Status")
-        self.lamp_row = Adw.ActionRow(title="Lamp hours", subtitle="—")
+        self.lamp_row = Adw.ActionRow(title="Lamp hours", subtitle="-")
         status_group.add(self.lamp_row)
         box.append(status_group)
 
         cast_group = Adw.PreferencesGroup(title="Cast")
         cast_row = Adw.ActionRow(
             title="Mirror this screen",
-            subtitle="Requires the casting pipeline (see cast.py — delivery protocol pending)",
+            subtitle="Requires the casting pipeline (see cast.py - delivery protocol pending)",
         )
         cast_btn = Gtk.Button(label="Start casting", css_classes=["suggested-action"], valign=Gtk.Align.CENTER)
         cast_btn.connect("clicked", self.on_cast_clicked)
@@ -297,7 +297,7 @@ class MainWindow(Adw.ApplicationWindow):
         return None
 
     def on_cast_clicked(self, _button) -> None:
-        self._toast("Casting pipeline needs the confirmed EShare delivery protocol — see cast.py")
+        self._toast("Casting pipeline needs the confirmed EShare delivery protocol - see cast.py")
 
     def _toast(self, message: str) -> None:
         self.toast_overlay.add_toast(Adw.Toast(title=message, timeout=4))

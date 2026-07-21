@@ -1,5 +1,5 @@
-# epsonctl — Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
-"""Shared test fixtures for epsonctl test suite."""
+# linux-iprojection - Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
+"""Shared test fixtures for linux-iprojection test suite."""
 
 import asyncio
 
@@ -63,7 +63,7 @@ class FakeEscVpServer:
                 cmd = data.decode("ascii", errors="replace").strip()
 
                 if self.hang_on_command:
-                    # Simulate timeout — never respond
+                    # Simulate timeout - never respond
                     await asyncio.sleep(60)
                     break
 

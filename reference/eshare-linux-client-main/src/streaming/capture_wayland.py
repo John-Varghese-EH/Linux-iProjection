@@ -1,5 +1,5 @@
 """
-capture_wayland.py — xdg-desktop-portal ScreenCast helper
+capture_wayland.py - xdg-desktop-portal ScreenCast helper
 =========================================================
 
 Requests a screen-capture PipeWire node from the Freedesktop
@@ -109,7 +109,7 @@ class WaylandCapture:
         """
         if IS_WINDOWS:
             log.warning(
-                "[WINDOWS MODE] Skipping xdg-desktop-portal — returning dummy node ID -1. "
+                "[WINDOWS MODE] Skipping xdg-desktop-portal - returning dummy node ID -1. "
                 "The pipeline will use videotestsrc instead."
             )
             self._node_id = -1
@@ -225,14 +225,14 @@ def list_pipewire_nodes() -> list[dict]:
     On Windows, always returns an empty list.
     """
     if IS_WINDOWS:
-        log.info("[WINDOWS MODE] pw-cli not available on Windows — returning empty node list.")
+        log.info("[WINDOWS MODE] pw-cli not available on Windows - returning empty node list.")
         return []
     try:
         out = subprocess.check_output(
             ["pw-cli", "list-objects"], stderr=subprocess.DEVNULL, text=True
         )
     except FileNotFoundError:
-        log.warning("pw-cli not found — PipeWire may not be installed.")
+        log.warning("pw-cli not found - PipeWire may not be installed.")
         return []
     except subprocess.CalledProcessError as exc:
         log.warning("pw-cli error: %s", exc)

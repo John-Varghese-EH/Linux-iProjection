@@ -1,5 +1,5 @@
 """
-gstreamer_pipeline.py — GStreamer Pipeline Builder & Manager
+gstreamer_pipeline.py - GStreamer Pipeline Builder & Manager
 ============================================================
 
 Constructs, manages, and monitors the GStreamer pipeline that captures
@@ -85,7 +85,7 @@ IS_WINDOWS: bool = (
 
 if IS_WINDOWS:
     log.warning(
-        "[WINDOWS MODE] pipewiresrc unavailable — using videotestsrc/audiotestsrc. "
+        "[WINDOWS MODE] pipewiresrc unavailable - using videotestsrc/audiotestsrc. "
         "All streaming output is synthetic test content only."
     )
 
@@ -149,7 +149,7 @@ def _probe_encoder(preferred: EncoderPreset) -> str:
             log.info("Encoder selected: %s", elem_name)
             return elem_name
 
-    log.warning("No H.264 encoder found — defaulting to x264enc (may fail if not installed)")
+    log.warning("No H.264 encoder found - defaulting to x264enc (may fail if not installed)")
     return "x264enc"
 
 
@@ -183,7 +183,7 @@ def _probe_audio_encoder() -> tuple[str, str]:
         return "opusenc bitrate=128000", "rtpopuspay"
     if registry.lookup_feature("avenc_aac"):
         return "avenc_aac bitrate=128000", "rtpmp4apay"
-    log.warning("No audio encoder found — audio will be disabled")
+    log.warning("No audio encoder found - audio will be disabled")
     return "", ""
 
 
@@ -378,7 +378,7 @@ class GStreamerPipeline:
     def start(self) -> None:
         """Build and start the GStreamer pipeline. Idempotent."""
         if self._running:
-            log.warning("Pipeline already running — ignoring start()")
+            log.warning("Pipeline already running - ignoring start()")
             return
 
         _init_gst()
@@ -553,7 +553,7 @@ if __name__ == "__main__":
     import argparse
 
     logging.basicConfig(level=logging.DEBUG,
-                        format="%(asctime)s %(levelname)-8s %(name)s — %(message)s")
+                        format="%(asctime)s %(levelname)-8s %(name)s - %(message)s")
 
     p = argparse.ArgumentParser(description="Test GStreamer pipeline against mock receiver")
     p.add_argument("--target",    default="127.0.0.1")

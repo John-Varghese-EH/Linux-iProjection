@@ -1,5 +1,5 @@
 """
-epsonctl - Command Line Interface
+linux-iprojection - Command Line Interface
 """
 
 import argparse
@@ -86,7 +86,7 @@ def _wake(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="epsonctl",
+        prog="linux-iprojection",
         description="Native Linux control app for Epson projectors (ESC/VP.net + EShare)",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)

@@ -1,5 +1,5 @@
 """
-test_epson_control.py — Unit tests for ESC/VP.net and PJLink controllers
+test_epson_control.py - Unit tests for ESC/VP.net and PJLink controllers
 =========================================================================
 
 Tests use a real asyncio TCP server (127.0.0.1 on a random port) to

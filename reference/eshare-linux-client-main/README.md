@@ -4,11 +4,11 @@ A Linux desktop application for wireless screen projection to **Epson projectors
 
 ## Features
 
-- 🔍 **Auto-discovery** — mDNS (Zeroconf), SSDP, and subnet port-scan fallback
-- 📡 **Wayland-native** — PipeWire screen capture via `pipewiresrc` + xdg-desktop-portal
-- 🔊 **Audio support** — System audio capture via PipeWire/PulseAudio mixed into the stream
-- 🎮 **Epson control** — ESC/VP.net (TCP 3629) for power, input switching, and status queries
-- 🖥️ **GTK4 UI** — Native GNOME look with Libadwaita
+- 🔍 **Auto-discovery** - mDNS (Zeroconf), SSDP, and subnet port-scan fallback
+- 📡 **Wayland-native** - PipeWire screen capture via `pipewiresrc` + xdg-desktop-portal
+- 🔊 **Audio support** - System audio capture via PipeWire/PulseAudio mixed into the stream
+- 🎮 **Epson control** - ESC/VP.net (TCP 3629) for power, input switching, and status queries
+- 🖥️ **GTK4 UI** - Native GNOME look with Libadwaita
 
 ## Quick Start
 

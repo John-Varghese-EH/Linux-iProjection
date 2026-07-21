@@ -1,7 +1,7 @@
-# epsonctl — Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
-"""Unit tests for epsonctl.discovery.
+# linux-iprojection - Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
+"""Unit tests for linux_iprojection.discovery.
 
-Tests use mocked sockets and zeroconf — no real network needed.
+Tests use mocked sockets and zeroconf - no real network needed.
 """
 
 import asyncio
@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from epsonctl.discovery import (
+from linux_iprojection.discovery import (
     HTTP_KEYWORDS,
     SERVICE_TYPES,
     DiscoveredDevice,
@@ -61,7 +61,7 @@ async def test_lan_scan_finds_open_port():
 
     import ipaddress
 
-    with patch("epsonctl.discovery.asyncio.open_connection", side_effect=fake_open_connection):
+    with patch("linux_iprojection.discovery.asyncio.open_connection", side_effect=fake_open_connection):
         results = await discover_by_scan(
             ports=[3629],
             network=ipaddress.IPv4Network("192.168.1.48/29"),  # .49-.54
@@ -81,7 +81,7 @@ async def test_lan_scan_timeout():
 
     import ipaddress
 
-    with patch("epsonctl.discovery.asyncio.open_connection", side_effect=fake_open_connection):
+    with patch("linux_iprojection.discovery.asyncio.open_connection", side_effect=fake_open_connection):
         results = await discover_by_scan(
             ports=[3629],
             network=ipaddress.IPv4Network("10.0.0.0/30"),  # just 2 hosts
@@ -120,7 +120,7 @@ def test_dedup_prefers_mdns():
 
 def test_local_ipv4_networks():
     """Should return at least one network on most dev machines."""
-    # This test may fail in isolated CI without network — that's OK
+    # This test may fail in isolated CI without network - that's OK
     networks = _local_ipv4_networks()
     # Don't assert length > 0 as this depends on environment
     for net in networks:

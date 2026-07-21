@@ -1,4 +1,4 @@
-# epsonctl — Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
+# linux-iprojection - Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
 
 # AppImage Build Notes
 

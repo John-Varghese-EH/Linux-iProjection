@@ -1,5 +1,5 @@
 """
-epsonctl - Screen casting via GStreamer and XDG Desktop Portal
+linux-iprojection - Screen casting via GStreamer and XDG Desktop Portal
 Part of the iProjection (Unofficial) project by John Varghese (J0X)
 https://github.com/John-Varghese-EH
 
@@ -173,7 +173,7 @@ async def _request_portal_stream() -> Optional[int]:
         None,
     )
 
-    token = f"epsonctl_{os.getpid()}"
+    token = f"linux-iprojection_{os.getpid()}"
     sender = bus.get_unique_name().replace(".", "_")[1:]
 
     async def call_and_wait(method: str, args, handle_token: str) -> dict:

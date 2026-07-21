@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<gresources>
-  <gresource prefix="/dev/epsonctl/EpsonCtl">
-    <file alias="icons/scalable/apps/dev.epsonctl.EpsonCtl.svg">icons/hicolor/scalable/apps/dev.epsonctl.EpsonCtl.svg</file>
-  </gresource>
-</gresources>

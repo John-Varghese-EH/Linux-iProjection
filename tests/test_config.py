@@ -2,7 +2,7 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
-from epsonctl.config import AppConfig, load_config, save_config
+from linux_iprojection.config import AppConfig, load_config, save_config
 
 
 def test_app_config_defaults():
@@ -22,7 +22,7 @@ def test_config_save_load():
         tmp_path = Path(tmpdir)
 
         # Mock get_config_dir to return our tmpdir
-        with mock.patch("epsonctl.config.get_config_dir", return_value=tmp_path):
+        with mock.patch("linux_iprojection.config.get_config_dir", return_value=tmp_path):
             # Create a modified config
             config = AppConfig(
                 polling_interval=15,

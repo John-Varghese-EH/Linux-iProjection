@@ -1,5 +1,5 @@
 """
-main.py — Application Entry Point
+main.py - Application Entry Point
 ===================================
 
 Creates the Gtk.Application, registers actions, and launches AppWindow.
@@ -149,7 +149,7 @@ class Application(Adw.Application):
 def main() -> int:
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s  %(levelname)-8s  %(name)s — %(message)s",
+        format="%(asctime)s  %(levelname)-8s  %(name)s - %(message)s",
         datefmt="%H:%M:%S",
     )
     app = Application()

@@ -1,5 +1,5 @@
 """
-device_row.py — GTK4 List Row Widget for a Discovered Device
+device_row.py - GTK4 List Row Widget for a Discovered Device
 ============================================================
 
 Displays a single projection target inside the left-panel ListBox.

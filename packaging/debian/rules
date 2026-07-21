@@ -1,5 +1,5 @@
 #!/usr/bin/make -f
-export PYBUILD_NAME=epsonctl
+export PYBUILD_NAME=linux-iprojection
 
 %:
 	dh $@ --with python3 --buildsystem=pybuild
@@ -8,14 +8,14 @@ override_dh_auto_install:
 	dh_auto_install
 	
 	# Install data files
-	mkdir -p debian/epsonctl/usr/share/applications/
-	cp data/dev.epsonctl.EpsonCtl.desktop debian/epsonctl/usr/share/applications/
+	mkdir -p debian/linux-iprojection/usr/share/applications/
+	cp data/dev.linux_iprojection.LinuxIProjection.desktop debian/linux-iprojection/usr/share/applications/
 	
-	mkdir -p debian/epsonctl/usr/share/icons/hicolor/scalable/apps/
-	cp data/icons/hicolor/scalable/apps/dev.epsonctl.EpsonCtl.svg debian/epsonctl/usr/share/icons/hicolor/scalable/apps/
+	mkdir -p debian/linux-iprojection/usr/share/icons/hicolor/scalable/apps/
+	cp data/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg debian/linux-iprojection/usr/share/icons/hicolor/scalable/apps/
 	
-	mkdir -p debian/epsonctl/usr/share/metainfo/
-	cp data/dev.epsonctl.EpsonCtl.metainfo.xml debian/epsonctl/usr/share/metainfo/
+	mkdir -p debian/linux-iprojection/usr/share/metainfo/
+	cp data/dev.linux_iprojection.LinuxIProjection.metainfo.xml debian/linux-iprojection/usr/share/metainfo/
 	
-	mkdir -p debian/epsonctl/usr/share/epsonctl/
-	cp data/epsonctl.gresource debian/epsonctl/usr/share/epsonctl/
+	mkdir -p debian/linux-iprojection/usr/share/linux-iprojection/
+	cp data/linux_iprojection.gresource debian/linux-iprojection/usr/share/linux-iprojection/

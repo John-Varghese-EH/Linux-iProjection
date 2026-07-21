@@ -1,5 +1,5 @@
 """
-Device dataclass — the central data model for any discovered receiver.
+Device dataclass - the central data model for any discovered receiver.
 
 Every discovery backend (mDNS, SSDP, network scan) produces Device objects.
 The GUI and control/streaming layers consume them.
@@ -36,12 +36,12 @@ class Device:
     """
     Feature flags detected from discovery records.
     Known values:
-      "escvpnet"   — Epson ESC/VP.net control (TCP 3629)
-      "pjlink"     — PJLink protocol (TCP 4352)
-      "rtp_recv"   — Device can receive an RTP stream
-      "rtsp_recv"  — Device can receive an RTSP stream
-      "webcast"    — EShare WebCast HTTP push mode
-      "eshare_app" — EShare official client integration
+      "escvpnet"   - Epson ESC/VP.net control (TCP 3629)
+      "pjlink"     - PJLink protocol (TCP 4352)
+      "rtp_recv"   - Device can receive an RTP stream
+      "rtsp_recv"  - Device can receive an RTSP stream
+      "webcast"    - EShare WebCast HTTP push mode
+      "eshare_app" - EShare official client integration
     """
 
     # ── Stream endpoint ────────────────────────────────────────────────────

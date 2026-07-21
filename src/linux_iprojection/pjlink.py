@@ -1,5 +1,5 @@
 """
-epsonctl - PJLink Protocol Controller
+linux-iprojection - PJLink Protocol Controller
 Part of the iProjection (Unofficial) project by John Varghese (J0X)
 https://github.com/John-Varghese-EH
 

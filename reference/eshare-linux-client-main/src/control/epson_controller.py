@@ -1,5 +1,5 @@
 """
-epson_controller.py — Epson ESC/VP.net Control Layer
+epson_controller.py - Epson ESC/VP.net Control Layer
 =====================================================
 
 Manages the TCP session to an Epson projector's ESC/VP.net interface
@@ -274,7 +274,7 @@ class EpsonController:
                 await self._command("PWR?")
                 log.debug("Keep-alive OK")
             except Exception as exc:
-                log.warning("Keep-alive failed: %s — marking disconnected", exc)
+                log.warning("Keep-alive failed: %s - marking disconnected", exc)
                 self.connected = False
                 break
 
@@ -293,7 +293,7 @@ class EpsonController:
 # ──────────────────────────────────────────────────────────────────────────────
 
 async def _cli(host: str, port: int) -> None:
-    import readline  # noqa: F401 — enables line editing in interactive mode
+    import readline  # noqa: F401 - enables line editing in interactive mode
 
     print(f"Connecting to {host}:{port} …")
     ctl = EpsonController(host, port)
@@ -312,7 +312,7 @@ async def _cli(host: str, port: int) -> None:
           f"  Errors: {status.errors}\n"
           f"  Model : {status.model}\n")
 
-    print("Interactive mode — type ESC/VP.net commands, 'quit' to exit.\n")
+    print("Interactive mode - type ESC/VP.net commands, 'quit' to exit.\n")
     loop = asyncio.get_event_loop()
     while True:
         try:
@@ -334,7 +334,7 @@ async def _cli(host: str, port: int) -> None:
 if __name__ == "__main__":
     import argparse
     logging.basicConfig(level=logging.DEBUG,
-                        format="%(asctime)s %(levelname)-8s %(name)s — %(message)s")
+                        format="%(asctime)s %(levelname)-8s %(name)s - %(message)s")
     p = argparse.ArgumentParser(description="Interactive ESC/VP.net CLI")
     p.add_argument("host", nargs="?", default="127.0.0.1")
     p.add_argument("--port", type=int, default=ESCVPNET_PORT)

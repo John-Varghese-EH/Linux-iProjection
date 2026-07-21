@@ -1,5 +1,5 @@
 """
-epsonctl - ESC/VP.net client.
+linux-iprojection - ESC/VP.net client.
 Part of the iProjection (Unofficial) project by John Varghese (J0X)
 https://github.com/John-Varghese-EH
 

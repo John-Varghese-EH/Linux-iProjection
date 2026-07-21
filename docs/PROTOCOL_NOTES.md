@@ -46,31 +46,31 @@ public Epson documentation. Sufficient detail for reimplementation.
 
 ### Firmware Quirks
 - Keep-alive required: some firmware drops TCP after ~30s idle. Send `PWR?\r` periodically.
-- Some older firmware sends `\r:` instead of `\r\n:` — handle both.
+- Some older firmware sends `\r:` instead of `\r\n:` - handle both.
 
 ## Screen Casting Protocol
 
 ### Discovery (mDNS/DNS-SD)
 
 Service types:
-- `_epson._tcp.local.` — Epson network projectors (iProjection/EasyMP)
-- `_eshare._tcp.local.` — EShare wireless display receivers
-- `_http._tcp.local.` — Generic HTTP devices (filtered by keywords)
+- `_epson._tcp.local.` - Epson network projectors (iProjection/EasyMP)
+- `_eshare._tcp.local.` - EShare wireless display receivers
+- `_http._tcp.local.` - Generic HTTP devices (filtered by keywords)
 
 TXT records for `_epson._tcp.local.`:
-- `ty` — device type string (e.g., "Epson Projector")
-- `vers` — firmware version
-- `note` — description
-- `usb` — USB availability flag
+- `ty` - device type string (e.g., "Epson Projector")
+- `vers` - firmware version
+- `note` - description
+- `usb` - USB availability flag
 
 TXT records for `_eshare._tcp.local.`:
-- `model` — model name
-- `version` — firmware version
-- `cap` — capabilities (comma-separated: `webcast`, `rtp`)
+- `model` - model name
+- `version` - firmware version
+- `cap` - capabilities (comma-separated: `webcast`, `rtp`)
 
 ### Stream Transport
 
-Pure **RTP over UDP** (not RTSP). No session negotiation handshake — the sender simply starts pushing RTP packets to the receiver's IP.
+Pure **RTP over UDP** (not RTSP). No session negotiation handshake - the sender simply starts pushing RTP packets to the receiver's IP.
 
 #### Video (port 5004)
 - Codec: H.264 (Baseline/Main profile)

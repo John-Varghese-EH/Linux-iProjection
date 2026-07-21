@@ -1,5 +1,5 @@
 """
-epsonctl - Unified Client Wrapper
+linux-iprojection - Unified Client Wrapper
 Part of the iProjection (Unofficial) project by John Varghese (J0X)
 https://github.com/John-Varghese-EH
 """

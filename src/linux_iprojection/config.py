@@ -1,5 +1,5 @@
 """
-epsonctl - Configuration and logging management
+linux-iprojection - Configuration and logging management
 Part of the iProjection (Unofficial) project by John Varghese (J0X)
 https://github.com/John-Varghese-EH
 """
@@ -36,13 +36,13 @@ class AppConfig:
 
 
 def get_config_dir() -> Path:
-    config_dir = Path(GLib.get_user_config_dir()) / "epsonctl"
+    config_dir = Path(GLib.get_user_config_dir()) / "linux-iprojection"
     os.makedirs(config_dir, exist_ok=True)
     return config_dir
 
 
 def get_state_dir() -> Path:
-    state_dir = Path(os.path.expanduser("~/.local/state/epsonctl"))
+    state_dir = Path(os.path.expanduser("~/.local/state/linux-iprojection"))
     os.makedirs(state_dir, exist_ok=True)
     return state_dir
 
@@ -119,7 +119,7 @@ class DeviceStore:
 
 def setup_logging(verbose: bool = False):
     log_level = logging.DEBUG if verbose else logging.INFO
-    log_file = get_state_dir() / "epsonctl.log"
+    log_file = get_state_dir() / "linux-iprojection.log"
 
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 

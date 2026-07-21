@@ -1,5 +1,5 @@
 """
-ssdp_scanner.py — SSDP / UPnP Discovery Backend
+ssdp_scanner.py - SSDP / UPnP Discovery Backend
 ================================================
 
 Sends an SSDP ``M-SEARCH`` multicast request and listens for responses that
@@ -252,7 +252,7 @@ class SsdpScanner:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
-                        format="%(asctime)s %(levelname)-8s %(name)s — %(message)s")
+                        format="%(asctime)s %(levelname)-8s %(name)s - %(message)s")
     print("SSDP scan …  (Ctrl+C to stop)\n")
 
     def on_found(d: Device) -> None:

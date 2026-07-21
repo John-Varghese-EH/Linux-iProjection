@@ -1,11 +1,11 @@
 """
-pjlink_controller.py — PJLink Protocol Controller (Class 1 & 2)
+pjlink_controller.py - PJLink Protocol Controller (Class 1 & 2)
 ===============================================================
 
 PJLink is an open, standardised projector control protocol (TCP port 4352).
 Many Epson models that do NOT expose ESC/VP.net still support PJLink.
 
-Protocol overview — Class 1
+Protocol overview - Class 1
 ---------------------------
   1. Connect TCP to host:4352
   2. Receive greeting: "%1PJLINK 0\\r" (0 = no auth) or
@@ -20,15 +20,15 @@ with "%2" prefix.
 
 Known commands
 --------------
-  POWR  — Power (1=on, 0=off, query returns 0/1/2/3)
-  INPT  — Input source (e.g. "31" = HDMI1, "11" = RGB1)
-  AVMT  — AV mute (10=video mute off, 11=video on, 20=audio off ...)
-  ERST  — Error status (6 digits: fan/lamp/temp/cover/filter/other)
-  LAMP  — Lamp hours and status
-  NAME  — Projector name
-  INF1  — Manufacturer name
-  INF2  — Product name
-  CLSS  — PJLink class (1 or 2)
+  POWR  - Power (1=on, 0=off, query returns 0/1/2/3)
+  INPT  - Input source (e.g. "31" = HDMI1, "11" = RGB1)
+  AVMT  - AV mute (10=video mute off, 11=video on, 20=audio off ...)
+  ERST  - Error status (6 digits: fan/lamp/temp/cover/filter/other)
+  LAMP  - Lamp hours and status
+  NAME  - Projector name
+  INF1  - Manufacturer name
+  INF2  - Product name
+  CLSS  - PJLink class (1 or 2)
 
 Reference: PJLink specification rev 2.00 (JBMIA)
 
@@ -162,7 +162,7 @@ class PJLinkController:
         log.debug("PJLink greeting: %r", greeting)
 
         if "PJLINK 1" in greeting:
-            # Authentication required — derive MD5 hash
+            # Authentication required - derive MD5 hash
             parts = greeting.split()
             salt  = parts[-1] if len(parts) >= 3 else ""
             if not self._password:
@@ -347,7 +347,7 @@ class PJLinkController:
 if __name__ == "__main__":
     import argparse
     logging.basicConfig(level=logging.DEBUG,
-                        format="%(asctime)s %(levelname)-8s %(name)s — %(message)s")
+                        format="%(asctime)s %(levelname)-8s %(name)s - %(message)s")
     p = argparse.ArgumentParser(description="Interactive PJLink CLI")
     p.add_argument("host", nargs="?", default="127.0.0.1")
     p.add_argument("--port",     type=int, default=PJLINK_PORT)

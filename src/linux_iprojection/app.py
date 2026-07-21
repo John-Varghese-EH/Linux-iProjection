@@ -1,5 +1,5 @@
 """
-epsonctl - main application
+linux-iprojection - main application
 Part of the iProjection (Unofficial) project by John Varghese (J0X)
 https://github.com/John-Varghese-EH
 
@@ -27,7 +27,7 @@ from .discovery import DiscoveredDevice, discover_all  # noqa: E402
 from .protocol import Source  # noqa: E402
 
 log = logging.getLogger(__name__)
-APP_ID = "dev.epsonctl.EpsonCtl"
+APP_ID = "dev.linux_iprojection.LinuxIProjection"
 
 
 # Version
@@ -37,7 +37,7 @@ def _get_version() -> str:
     try:
         from importlib.metadata import version
 
-        return version("epsonctl")
+        return version("linux-iprojection")
     except Exception:
         try:
             from . import __version__
@@ -665,12 +665,12 @@ class MainWindow(Adw.ApplicationWindow):
     def _show_about(self, *_args) -> None:
         from .config import get_state_dir
 
-        log_path = get_state_dir() / "epsonctl.log"
+        log_path = get_state_dir() / "linux-iprojection.log"
 
         about = Adw.AboutWindow(
             transient_for=self,
             application_name="iProjection",
-            application_icon="dev.epsonctl.EpsonCtl",
+            application_icon="dev.linux_iprojection.LinuxIProjection",
             version=_get_version(),
             developer_name="John Varghese (J0X)",
             website="https://github.com/John-Varghese-EH",
@@ -678,7 +678,7 @@ class MainWindow(Adw.ApplicationWindow):
             license_type=Gtk.License.AGPL_3_0,
             comments="The ultimate, enterprise-grade controller for your Epson projector.\n"
             "Take complete command over network and mDNS projection. Features advanced diagnostic tools,\n"
-            "custom alias management, direct ESC/VP console access, and native PipeWire screen casting—all\n"
+            "custom alias management, direct ESC/VP console access, and native PipeWire screen casting-all\n"
             "packaged in a sleek, responsive GTK4 design.\n\n"
             "Note: This is an unofficial, community-driven application. Not affiliated with Seiko Epson Corporation.",
         )
@@ -805,7 +805,7 @@ class MainWindow(Adw.ApplicationWindow):
         diag_group = Adw.PreferencesGroup(title="Diagnostics")
         debug_row = Adw.SwitchRow(
             title="Enable Debug Logging",
-            subtitle="Write verbose payload traces to epsonctl.log",
+            subtitle="Write verbose payload traces to linux-iprojection.log",
             active=self._config.debug_mode,
         )
         debug_row.connect("notify::active", self._on_debug_changed)
@@ -1583,9 +1583,9 @@ class EpsonCtlApp(Adw.Application):
 
         # Check local source tree first, then fallback to system installation path
         gresource_paths = [
-            os.path.join(base_dir, "data", "epsonctl.gresource"),
-            "/usr/share/epsonctl/epsonctl.gresource",
-            os.path.join(sys.prefix, "share", "epsonctl", "epsonctl.gresource"),
+            os.path.join(base_dir, "data", "linux_iprojection.gresource"),
+            "/usr/share/linux-iprojection/linux_iprojection.gresource",
+            os.path.join(sys.prefix, "share", "linux-iprojection", "linux_iprojection.gresource"),
         ]
 
         for path in gresource_paths:
@@ -1595,9 +1595,9 @@ class EpsonCtlApp(Adw.Application):
                     resource._register()
                     # Explicitly tell GTK to look for icons in our resource
                     theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
-                    theme.add_resource_path("/dev/epsonctl/EpsonCtl/icons")
+                    theme.add_resource_path("/dev/linux-iprojection/EpsonCtl/icons")
                     # Also set the default window icon so all windows get it automatically
-                    Gtk.Window.set_default_icon_name("dev.epsonctl.EpsonCtl")
+                    Gtk.Window.set_default_icon_name("dev.linux_iprojection.LinuxIProjection")
                     break
                 except Exception as e:
                     print(f"Warning: Failed to load resource {path}: {e}")

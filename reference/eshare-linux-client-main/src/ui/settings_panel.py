@@ -1,5 +1,5 @@
 """
-settings_panel.py — Stream Settings Panel (Adw.PreferencesGroup)
+settings_panel.py - Stream Settings Panel (Adw.PreferencesGroup)
 ================================================================
 
 Shown in the right-hand detail pane when a device is selected.
@@ -8,9 +8,9 @@ signal when any value changes so the pipeline can be updated.
 
 Groups
 ------
-  1. Video — resolution, frame rate, encoder, bitrate slider
-  2. Audio — enable toggle, codec selector
-  3. Advanced — manual IP entry, stream ports
+  1. Video - resolution, frame rate, encoder, bitrate slider
+  2. Audio - enable toggle, codec selector
+  3. Advanced - manual IP entry, stream ports
 """
 
 from __future__ import annotations

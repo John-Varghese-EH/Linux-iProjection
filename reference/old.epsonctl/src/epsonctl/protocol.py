@@ -42,7 +42,7 @@ class Power(str, Enum):
 
 
 # Common input source codes. Not every projector model supports every
-# source — query `SOURCE?` / consult the model's ESC/VP21 guide to confirm.
+# source - query `SOURCE?` / consult the model's ESC/VP21 guide to confirm.
 class Source(str, Enum):
     COMPUTER1 = "11"
     COMPUTER2 = "21"
@@ -66,7 +66,7 @@ class ProjectorStatus:
 class EscVpNetClient:
     """One connection per session. ESC/VP.net does not stay usefully
     open across long idle periods on all firmwares, so callers typically
-    open, run one or a few commands, and close — see `run_command` for a
+    open, run one or a few commands, and close - see `run_command` for a
     convenience one-shot helper.
     """
 
@@ -134,7 +134,7 @@ class EscVpNetClient:
         return the projector's decoded text reply, e.g. send("PWR?") -> "PWR=01".
         """
         if self._writer is None:
-            raise ProjectorError("Not connected — use `async with EscVpNetClient(...)`")
+            raise ProjectorError("Not connected - use `async with EscVpNetClient(...)`")
         self._writer.write(command.encode("ascii") + CMD_TERMINATOR)
         await self._writer.drain()
         reply = await self._read_until_prompt()

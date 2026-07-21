@@ -2,11 +2,11 @@
 Type=Application
 Name=iProjection (Unofficial)
 GenericName=Projector Control
-Comment=Control and cast to Epson projectors — by John Varghese (J0X)
-Exec=epsonctl
-Icon=dev.epsonctl.EpsonCtl
+Comment=Control and cast to Epson projectors - by John Varghese (J0X)
+Exec=linux-iprojection
+Icon=dev.linux_iprojection.LinuxIProjection
 Categories=AudioVideo;Video;Utility;GTK;
 Terminal=false
-StartupWMClass=dev.epsonctl.EpsonCtl
+StartupWMClass=dev.linux_iprojection.LinuxIProjection
 Keywords=projector;epson;cast;mirror;screen;
 X-GNOME-UsesNotifications=true

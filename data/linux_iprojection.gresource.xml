@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/dev/linux-iprojection/EpsonCtl">
+    <file alias="icons/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg">icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg</file>
+  </gresource>
+</gresources>

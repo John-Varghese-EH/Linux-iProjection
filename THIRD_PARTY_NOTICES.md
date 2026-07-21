@@ -5,10 +5,7 @@
 Protocol knowledge (mDNS service types, RTP streaming format, ESC/VP.net
 command details) was derived from studying the `eshare-linux-client` project.
 
-- License: GPL-3.0-or-later
-- Repository: (reference project included in /reference directory)
-
-This project (epsonctl) uses independently written code implementing the
+This project (linux-iprojection) uses independently written code implementing the
 same protocols. No code was copied verbatim. The protocol itself (ESC/VP.net,
 RTP, mDNS) consists of open standards and Epson's published specifications.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-mock_receiver.py — Local Mock Projection Receiver
+mock_receiver.py - Local Mock Projection Receiver
 ==================================================
 
 Simulates a network projector / EShare display for local development and
@@ -51,12 +51,12 @@ try:
     HAS_ZEROCONF = True
 except ImportError:
     HAS_ZEROCONF = False
-    print("[WARN] zeroconf not installed — mDNS advertisement disabled.")
+    print("[WARN] zeroconf not installed - mDNS advertisement disabled.")
     print("       Run: pip install zeroconf")
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s  %(levelname)-8s  %(name)s — %(message)s",
+    format="%(asctime)s  %(levelname)-8s  %(name)s - %(message)s",
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger("mock_receiver")
@@ -345,7 +345,7 @@ def run_rtp_receiver(host: str, port: int, label: str, state_attr: str) -> None:
             with STATE._lock:
                 if STATE.stream_start_time is None:
                     STATE.stream_start_time = time.monotonic()
-                    log.info("[RTP/%s] First packet received from %s — stream started!",
+                    log.info("[RTP/%s] First packet received from %s - stream started!",
                              label, addr)
 
                 setattr(STATE, packets_attr, getattr(STATE, packets_attr) + 1)
@@ -490,7 +490,7 @@ def main() -> None:
 
     print(f"""
 ╔══════════════════════════════════════════════════════════════╗
-║          linux-iprojection  —  Mock Receiver                 ║
+║          linux-iprojection  -  Mock Receiver                 ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  Name        : {args.name:<46}║
 ║  Type        : {args.type:<46}║
@@ -553,7 +553,7 @@ Press Ctrl+C to stop.
 
     # ── Graceful shutdown on SIGINT/SIGTERM ────────────────────────────────
     def _shutdown(sig, frame) -> None:
-        log.info("Shutdown signal received — stopping all services …")
+        log.info("Shutdown signal received - stopping all services …")
         STOP_EVENT.set()
 
     signal.signal(signal.SIGINT,  _shutdown)

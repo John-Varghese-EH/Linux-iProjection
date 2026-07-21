@@ -43,9 +43,12 @@ jobs:
       run: |
         make dist-tar
         
-    - name: Build AppImage
+    - name: Build Flatpak (.flatpak)
       run: |
-        make appimage || true
+        sudo apt-get install -y flatpak flatpak-builder
+        flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+        flatpak-builder --user --install-deps-from=flathub --force-clean build-dir packaging/flatpak/dev.linux_iprojection.LinuxIProjection.yml
+        flatpak build-bundle build-dir dist/linux-iprojection-linux.flatpak dev.linux_iprojection.LinuxIProjection
         
     - name: Create Advanced GitHub Release
       uses: softprops/action-gh-release@v2
@@ -54,7 +57,7 @@ jobs:
           dist/*.whl
           dist/*.tar.gz
           dist/*.deb
-          dist/*.AppImage
+          dist/*.flatpak
         generate_release_notes: true
         name: "iProjection for Linux Release ${{ github.ref_name }}"
         body: |
@@ -64,13 +67,13 @@ jobs:
           
           ### 📦 Assets Available
           - **.deb**: For Debian, Ubuntu, Linux Mint, Pop!_OS
-          - **.AppImage**: Universal portable Linux binary (run anywhere)
+          - **.flatpak**: Universal sandboxed Linux binary (Recommended)
           - **.tar.gz**: Source code & Arch/AUR PKGBUILD integration
           - **.whl**: Standard Python Wheel
           
           ### 🛠️ Quick Install
           ```bash
-          sudo dpkg -i epsonctl_*.deb
+          sudo dpkg -i linux-iprojection_*.deb
           sudo apt-get install -f
           ```
           

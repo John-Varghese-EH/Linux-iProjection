@@ -1,5 +1,5 @@
 """
-test_discovery.py — Unit tests for the discovery backends
+test_discovery.py - Unit tests for the discovery backends
 =========================================================
 
 Tests run without real network hardware using either:
@@ -229,7 +229,7 @@ class TestNetworkScanner(unittest.TestCase):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# mDNS scanner tests (mocked — no real Zeroconf)
+# mDNS scanner tests (mocked - no real Zeroconf)
 # ──────────────────────────────────────────────────────────────────────────────
 
 class TestMdnsScannerMocked(unittest.TestCase):

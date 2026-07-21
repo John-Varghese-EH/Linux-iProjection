@@ -1,5 +1,5 @@
 """
-app_window.py — Main Application Window
+app_window.py - Main Application Window
 ========================================
 
 Layout (Adw.ApplicationWindow):
@@ -445,7 +445,7 @@ class AppWindow(Adw.ApplicationWindow):
         self._on_scan_clicked(None)
 
     def _on_close(self, _window) -> bool:
-        log.info("Window closing — cleaning up …")
+        log.info("Window closing - cleaning up …")
         if self._pipeline:
             self._pipeline.stop()
         self._mdns.stop()

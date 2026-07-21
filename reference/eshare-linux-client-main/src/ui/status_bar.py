@@ -1,5 +1,5 @@
 """
-status_bar.py — Stream Status Footer Bar
+status_bar.py - Stream Status Footer Bar
 =========================================
 
 Displays live stream metrics at the bottom of the main window:
@@ -28,7 +28,7 @@ class StatusBar(Gtk.Box):
 
     Parameters
     ----------
-    None — constructed with no arguments; populated via method calls.
+    None - constructed with no arguments; populated via method calls.
     """
 
     def __init__(self) -> None:
@@ -88,9 +88,9 @@ class StatusBar(Gtk.Box):
         self._dot.add_css_class("success")
         self._dot.remove_css_class("error")
         self._status_label.set_label(f"Connected to {target_ip}")
-        self._bitrate_label.set_label("—")
-        self._fps_label.set_label("—")
-        self._latency_label.set_label("—")
+        self._bitrate_label.set_label("-")
+        self._fps_label.set_label("-")
+        self._latency_label.set_label("-")
 
     def show_streaming(self, target_ip: str) -> None:
         """Switch to streaming state (call update_stats for live metrics)."""
@@ -115,11 +115,11 @@ class StatusBar(Gtk.Box):
         snapshot.  Should be called from the GLib main loop.
         """
         self._bitrate_label.set_label(
-            f"{stats.bitrate_kbps / 1000:.1f} Mbps" if stats.bitrate_kbps else "—"
+            f"{stats.bitrate_kbps / 1000:.1f} Mbps" if stats.bitrate_kbps else "-"
         )
         self._fps_label.set_label(
-            f"{stats.fps:.0f} fps" if stats.fps else "—"
+            f"{stats.fps:.0f} fps" if stats.fps else "-"
         )
         self._latency_label.set_label(
-            f"{stats.latency_ms:.0f} ms" if stats.latency_ms else "—"
+            f"{stats.latency_ms:.0f} ms" if stats.latency_ms else "-"
         )

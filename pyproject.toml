@@ -1,6 +1,6 @@
-# epsonctl — Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
+# linux-iprojection - Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
 [project]
-name = "epsonctl"
+name = "linux-iprojection"
 version = "0.1.0"
 description = "Native Linux control & casting app for Epson projectors (ESC/VP.net + EShare)"
 readme = "README.md"
@@ -31,7 +31,7 @@ Homepage = "https://github.com/John-Varghese-EH/EPSON-iProjection-For-Linux"
 Issues = "https://github.com/John-Varghese-EH/EPSON-iProjection-For-Linux/issues"
 
 [project.scripts]
-epsonctl = "epsonctl.__main__:main"
+linux-iprojection = "linux_iprojection.__main__:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

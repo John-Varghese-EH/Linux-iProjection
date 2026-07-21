@@ -1,5 +1,5 @@
 """
-mdns_scanner.py — mDNS / DNS-SD Discovery Backend
+mdns_scanner.py - mDNS / DNS-SD Discovery Backend
 ==================================================
 
 Uses ``python-zeroconf`` to browse for projectors and displays that advertise
@@ -7,10 +7,10 @@ themselves on the local network via mDNS.
 
 Service types watched
 ---------------------
-- ``_epson._tcp.local.``    — Epson network projectors (iProjection / EasyMP)
-- ``_eshare._tcp.local.``   — EShare wireless display receivers
-- ``_http._tcp.local.``     — Generic HTTP devices (filtered by TXT records)
-- ``_printer._tcp.local.``  — Some Epson models also announce here
+- ``_epson._tcp.local.``    - Epson network projectors (iProjection / EasyMP)
+- ``_eshare._tcp.local.``   - EShare wireless display receivers
+- ``_http._tcp.local.``     - Generic HTTP devices (filtered by TXT records)
+- ``_printer._tcp.local.``  - Some Epson models also announce here
 
 Thread safety
 -------------
@@ -154,7 +154,7 @@ class _ProjectionListener(ServiceListener):
     def add_service(self, zc: "Zeroconf", svc_type: str, name: str) -> None:
         info = zc.get_service_info(svc_type, name, timeout=3000)
         if info is None:
-            log.debug("mDNS: add_service — could not resolve info for %s", name)
+            log.debug("mDNS: add_service - could not resolve info for %s", name)
             return
         device = _device_from_info(info, self._default_type)
         if device is None:
@@ -185,7 +185,7 @@ class MdnsScanner:
     on_found:
         Called with a :class:`~src.models.device.Device` whenever a new
         device is discovered or updated.  May be called from a background
-        thread — use ``GLib.idle_add()`` if updating the GTK UI.
+        thread - use ``GLib.idle_add()`` if updating the GTK UI.
     on_lost:
         Called with ``(ip: str, port: int)`` when a device disappears.
     service_types:
@@ -216,7 +216,7 @@ class MdnsScanner:
             return
         self._running = True
         self._zc = Zeroconf()
-        log.info("mDNS scanner started — watching %d service type(s)",
+        log.info("mDNS scanner started - watching %d service type(s)",
                  len(self._service_types))
 
         for svc_type, default_type in self._service_types.items():
@@ -266,7 +266,7 @@ def _cli_on_lost(ip: str, port: int) -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
-                        format="%(asctime)s %(levelname)-8s %(name)s — %(message)s")
+                        format="%(asctime)s %(levelname)-8s %(name)s - %(message)s")
     print("Scanning for projectors and displays via mDNS …  (Ctrl+C to stop)\n")
 
     scanner = MdnsScanner(on_found=_cli_on_found, on_lost=_cli_on_lost)

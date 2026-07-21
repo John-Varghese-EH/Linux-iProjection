@@ -1,5 +1,5 @@
 """
-epsonctl - Main Entry Point
+linux-iprojection - Main Entry Point
 """
 
 import sys

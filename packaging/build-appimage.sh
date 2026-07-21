@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# epsonctl — Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
-# Script to build an AppImage for epsonctl
+# linux-iprojection - Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
+# Script to build an AppImage for linux-iprojection
 
 set -euo pipefail
 
@@ -11,14 +11,14 @@ mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hic
 # Install application into AppDir
 pip install --target AppDir/usr/lib/python3/dist-packages .
 
-cp data/dev.epsonctl.EpsonCtl.desktop AppDir/usr/share/applications/
-cp data/icons/hicolor/scalable/apps/dev.epsonctl.EpsonCtl.svg AppDir/usr/share/icons/hicolor/scalable/apps/
+cp data/dev.linux_iprojection.LinuxIProjection.desktop AppDir/usr/share/applications/
+cp data/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg AppDir/usr/share/icons/hicolor/scalable/apps/
 
 cat << 'EOF' > AppDir/AppRun
 #!/bin/sh
-# AppRun for epsonctl
+# AppRun for linux-iprojection
 export PYTHONPATH="${APPDIR}/usr/lib/python3/dist-packages:${PYTHONPATH}"
-exec python3 -m epsonctl.app "$@"
+exec python3 -m linux_iprojection.app "$@"
 EOF
 
 chmod +x AppDir/AppRun

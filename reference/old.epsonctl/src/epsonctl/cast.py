@@ -10,15 +10,15 @@ CAPTURE (solid, standards-based):
     GNOME, KDE, niri (via xdg-desktop-portal-gnome/-wlr) and Hyprland
     (via xdg-desktop-portal-hyprland) all implement. The portal hands
     back a PipeWire node id; GStreamer's `pipewiresrc` reads frames from
-    it directly — no compositor-specific code needed here.
+    it directly - no compositor-specific code needed here.
 
-DELIVERY (unconfirmed — needs the reference project's protocol):
+DELIVERY (unconfirmed - needs the reference project's protocol):
     How `eshare-linux-client` gets encoded frames onto the wire to an
     Epson EShare receiver is not something I have verified documentation
     for. Rather than guess at a wire format, `CastSink` below is an
     abstract seam: implement `build_sink_bin()` once we've read that
     protocol out of the reference repo (likely RTSP/RTP to the port
-    found via mDNS, given it's a GStreamer-based project — but confirm
+    found via mDNS, given it's a GStreamer-based project - but confirm
     before relying on it). Until then, `FileDumpSink` lets you test the
     capture half end-to-end by writing to a local file.
 """
@@ -67,7 +67,7 @@ class FileDumpSink(CastSink):
 
 
 class RtspPushSink(CastSink):
-    """PLACEHOLDER — do not treat as correct.
+    """PLACEHOLDER - do not treat as correct.
 
     If the reference project turns out to use RTSP push to the
     projector's EShare port, this is the shape it'd take. Left disabled
@@ -77,7 +77,7 @@ class RtspPushSink(CastSink):
 
     def build_sink_bin(self, target: CastTarget) -> str:
         raise NotImplementedError(
-            "EShare delivery protocol not yet confirmed — see module docstring. "
+            "EShare delivery protocol not yet confirmed - see module docstring. "
             "Inspect eshare-linux-client's GStreamer pipeline construction and "
             "fill this in."
         )
@@ -112,12 +112,12 @@ class ScreenCaster:
         `pipewiresrc target-object=<node-id>` after an explicit portal
         request via `xdg-desktop-portal`'s D-Bus API (python-dbus or
         `Gio.DBusProxy`). That D-Bus negotiation is a few dozen lines on
-        its own — flag if you want it filled in next; keeping this
+        its own - flag if you want it filled in next; keeping this
         function isolated here is what makes that a self-contained
         follow-up rather than a rewrite.
         """
         raise NotImplementedError(
-            "Portal ScreenCast D-Bus negotiation not yet implemented — "
+            "Portal ScreenCast D-Bus negotiation not yet implemented - "
             "isolated here so it's a clean follow-up task."
         )
 

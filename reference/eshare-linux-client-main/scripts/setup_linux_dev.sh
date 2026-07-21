@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# setup_linux_dev.sh — linux-iprojection One-Click Dev Environment Setup
+# setup_linux_dev.sh - linux-iprojection One-Click Dev Environment Setup
 # =============================================================================
 #
 # Installs all system and Python dependencies needed to build, run, and test
@@ -171,7 +171,7 @@ install_dnf() {
     sudo dnf install -y \
         "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm" \
         "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm" \
-        2>/dev/null || warn "RPM Fusion already enabled or unreachable — continuing."
+        2>/dev/null || warn "RPM Fusion already enabled or unreachable - continuing."
 
     DNF_PACKAGES=(
         # ── GTK4 + Adwaita ──────────────────────────────────────────────
@@ -290,7 +290,7 @@ verify_install() {
         if command -v "$1" &>/dev/null; then
             ok "$1 found ($(command -v "$1"))"
         else
-            warn "$1 not found in PATH — check installation."
+            warn "$1 not found in PATH - check installation."
         fi
     }
 
@@ -313,7 +313,7 @@ verify_install() {
     if gst-inspect-1.0 pipewiresrc &>/dev/null; then
         ok "  GStreamer: pipewiresrc (Wayland capture ready)"
     else
-        warn "  GStreamer: pipewiresrc not found — PipeWire GStreamer integration may need a reboot/re-login."
+        warn "  GStreamer: pipewiresrc not found - PipeWire GStreamer integration may need a reboot/re-login."
     fi
 }
 
@@ -323,7 +323,7 @@ print_next_steps() {
     PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"
     VENV_DIR="${PROJECT_ROOT}/.venv"
 
-    banner "Setup Complete — Next Steps"
+    banner "Setup Complete - Next Steps"
     cat <<EOF
   1. Activate the virtual environment:
        source ${VENV_DIR}/bin/activate

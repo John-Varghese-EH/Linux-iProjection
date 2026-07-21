@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="data/icons/hicolor/scalable/apps/dev.epsonctl.EpsonCtl.svg" width="128" alt="iProjection Logo"/>
+  <img src="data/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg" width="128" alt="iProjection Logo"/>
   <h1>iProjection (Unofficial)</h1>
   <p><b>The ultimate, enterprise-grade controller for Epson projectors on Linux.</b></p>
   
@@ -18,7 +18,7 @@ I built this application because I was frustrated by the lack of native, robust 
 
 - 🖥️ **Native GTK4 GUI**: A beautiful, responsive interface that matches your Linux desktop environment.
 - ⌨️ **Powerful CLI**: Automate and control everything directly from your terminal.
-- 📡 **mDNS Auto-Discovery**: Instantly find projectors on your local network—no manual IP configuration required.
+- 📡 **mDNS Auto-Discovery**: Instantly find projectors on your local network-no manual IP configuration required.
 - 🛠️ **Enterprise Diagnostics**: Monitor lamp hours, current errors, and hardware status in real-time.
 - 📺 **PipeWire Screen Casting**: Low-latency, high-quality screen casting built specifically for modern Wayland and X11 desktops.
 - 🔒 **PJLink Support**: Secure authentication for enterprise environments.
@@ -28,7 +28,7 @@ I built this application because I was frustrated by the lack of native, robust 
 ### Debian / Ubuntu
 Download the latest `.deb` package from the [Releases](https://github.com/John-Varghese-EH/EPSON-iProjection-For-Linux/releases) page.
 ```bash
-sudo dpkg -i epsonctl_*.deb
+sudo dpkg -i linux-iprojection_*.deb
 sudo apt-get install -f
 ```
 
@@ -50,21 +50,21 @@ pip install -e .
 
 ## 💻 CLI Usage
 
-You can automate `epsonctl` using its built-in Command Line Interface. 
+You can automate `linux-iprojection` using its built-in Command Line Interface. 
 
 ```bash
 # Discover projectors on your local network
-epsonctl discover
+linux-iprojection discover
 
 # Turn a projector ON or OFF
-epsonctl power on 192.168.1.100
-epsonctl power off 192.168.1.100
+linux-iprojection power on 192.168.1.100
+linux-iprojection power off 192.168.1.100
 
 # Switch the input source (e.g., HDMI1, VGA)
-epsonctl source HDMI1 192.168.1.100
+linux-iprojection source HDMI1 192.168.1.100
 
 # Check hardware status and lamp hours
-epsonctl status 192.168.1.100
+linux-iprojection status 192.168.1.100
 ```
 
 ## 🤝 Contributing
