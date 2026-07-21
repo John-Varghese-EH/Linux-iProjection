@@ -16,12 +16,13 @@ def test_app_config_defaults():
     assert config.pjlink_password == ""
     assert config.debug_mode is False
 
+
 def test_config_save_load():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
-        
+
         # Mock get_config_dir to return our tmpdir
-        with mock.patch('epsonctl.config.get_config_dir', return_value=tmp_path):
+        with mock.patch("epsonctl.config.get_config_dir", return_value=tmp_path):
             # Create a modified config
             config = AppConfig(
                 polling_interval=15,
@@ -31,18 +32,18 @@ def test_config_save_load():
                 connection_timeout=10,
                 default_port=4352,
                 pjlink_password="secret_password",
-                debug_mode=True
+                debug_mode=True,
             )
-            
+
             # Save it
             save_config(config)
-            
+
             # Ensure it wrote to disk
             assert (tmp_path / "config.json").exists()
-            
+
             # Load it back
             loaded = load_config()
-            
+
             # Verify fields
             assert loaded.polling_interval == 15
             assert loaded.auto_connect is True

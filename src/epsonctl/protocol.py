@@ -51,17 +51,17 @@ class Power(str, Enum):
 # Common input source codes. Not every projector model supports every
 # source - query `SOURCE?` / consult the model's ESC/VP21 guide to confirm.
 class Source(str, Enum):
-    VGA1 = "10" # Computer 1/VGA (Analog)
-    COMPUTER1 = "11" # Computer 1 (Digital/RGB)
-    VGA2 = "20" # Computer 2/VGA (Analog)
-    COMPUTER2 = "21" # Computer 2 (Digital/RGB)
-    HDMI1 = "30" # HDMI 1
-    VIDEO = "41" # Video/Composite
-    S_VIDEO = "42" # S-Video
-    USB = "52" # USB Display
-    LAN = "53" # LAN/Network
-    WIRELESS_HDMI = "56" # Wireless HDMI (e.g. EB-1430Wi)
-    HDMI2 = "A0" # HDMI 2
+    VGA1 = "10"  # Computer 1/VGA (Analog)
+    COMPUTER1 = "11"  # Computer 1 (Digital/RGB)
+    VGA2 = "20"  # Computer 2/VGA (Analog)
+    COMPUTER2 = "21"  # Computer 2 (Digital/RGB)
+    HDMI1 = "30"  # HDMI 1
+    VIDEO = "41"  # Video/Composite
+    S_VIDEO = "42"  # S-Video
+    USB = "52"  # USB Display
+    LAN = "53"  # LAN/Network
+    WIRELESS_HDMI = "56"  # Wireless HDMI (e.g. EB-1430Wi)
+    HDMI2 = "A0"  # HDMI 2
 
 
 class ColorMode(str, Enum):
@@ -149,7 +149,7 @@ class EscVpNetClient:
                     ) from e
                 log.warning(f"Connection attempt {retries} failed: {e}. Retrying in {delay}s...")
                 await asyncio.sleep(delay)
-                delay *= 3.0 # 0.5, 1.5, 4.5
+                delay *= 3.0  # 0.5, 1.5, 4.5
 
     async def _keepalive_loop(self):
         try:
@@ -194,9 +194,7 @@ class EscVpNetClient:
     async def _read_until_prompt(self) -> bytes:
         assert self._reader is not None
         try:
-            data = await asyncio.wait_for(
-                self._reader.readuntil(PROMPT), timeout=COMMAND_TIMEOUT
-            )
+            data = await asyncio.wait_for(self._reader.readuntil(PROMPT), timeout=COMMAND_TIMEOUT)
         except asyncio.TimeoutError as e:
             raise ProjectorError(f"Timed out waiting for reply from {self.host}") from e
         except asyncio.IncompleteReadError as e:

@@ -21,10 +21,10 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
-from .client import ProjectorClient
+from .client import ProjectorClient  # noqa: E402
 from .config import AppConfig, DeviceStore, load_config, save_config, setup_logging  # noqa: E402
 from .discovery import DiscoveredDevice, discover_all  # noqa: E402
-from .protocol import Source
+from .protocol import Source  # noqa: E402
 
 log = logging.getLogger(__name__)
 APP_ID = "dev.epsonctl.EpsonCtl"
@@ -32,19 +32,23 @@ APP_ID = "dev.epsonctl.EpsonCtl"
 
 # Version
 
+
 def _get_version() -> str:
     try:
         from importlib.metadata import version
+
         return version("epsonctl")
     except Exception:
         try:
             from . import __version__
+
             return __version__
         except Exception:
             return "0.1.0"
 
 
 # Async helper
+
 
 def _run_async(coro):
     """Run an async coroutine on a background thread, marshal result back
@@ -66,6 +70,7 @@ def _run_async(coro):
 
 # Device list row
 
+
 class DeviceRow(Adw.ActionRow):
     """A row in the sidebar device list."""
 
@@ -79,7 +84,7 @@ class DeviceRow(Adw.ActionRow):
 
         # Icon based on discovery source
         icon_name = "video-display-symbolic"
-        if hasattr(device, 'device_type'):
+        if hasattr(device, "device_type"):
             if device.device_type == "eshare":
                 icon_name = "screen-shared-symbolic"
         icon = Gtk.Image.new_from_icon_name(icon_name)
@@ -104,6 +109,7 @@ class DeviceRow(Adw.ActionRow):
 
 
 # Main window
+
 
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app: Adw.Application):
@@ -174,17 +180,19 @@ class MainWindow(Adw.ApplicationWindow):
             description="Scan the network or add one by IP address",
             icon_name="network-wireless-symbolic",
         )
-        
-        empty_actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12, halign=Gtk.Align.CENTER)
+
+        empty_actions = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL, spacing=12, halign=Gtk.Align.CENTER
+        )
         refresh_btn_large = Gtk.Button(label="Refresh", css_classes=["pill", "suggested-action"])
         refresh_btn_large.connect("clicked", self.on_refresh)
         add_manual_btn_large = Gtk.Button(label="Add Manual IP", css_classes=["pill"])
         add_manual_btn_large.connect("clicked", self.on_add_manual)
-        
+
         empty_actions.append(refresh_btn_large)
         empty_actions.append(add_manual_btn_large)
         self.empty_status.set_child(empty_actions)
-        
+
         self.sidebar_stack.add_named(self.empty_status, "empty")
 
         # Loading state
@@ -282,9 +290,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_content(self.toast_overlay)
 
         # Responsive breakpoint
-        bp = Adw.Breakpoint.new(
-            Adw.BreakpointCondition.parse("max-width: 500sp")
-        )
+        bp = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 500sp"))
         bp.add_setter(self.split, "collapsed", True)
         self.add_breakpoint(bp)
 
@@ -302,7 +308,6 @@ class MainWindow(Adw.ApplicationWindow):
             margin_top=24,
             margin_bottom=24,
         )
-        
 
         self.device_title = Gtk.Label(css_classes=["title-1"], xalign=0)
         self.device_subtitle = Gtk.Label(
@@ -313,8 +318,10 @@ class MainWindow(Adw.ApplicationWindow):
         box.append(self.device_subtitle)
 
         # Action Grid (Dashboard)
-        action_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16, halign=Gtk.Align.CENTER)
-        
+        action_box = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL, spacing=16, halign=Gtk.Align.CENTER
+        )
+
         def _build_action_toggle(icon_name: str, label: str) -> Gtk.ToggleButton:
             vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, valign=Gtk.Align.CENTER)
             icon = Gtk.Image.new_from_icon_name(icon_name)
@@ -343,18 +350,20 @@ class MainWindow(Adw.ApplicationWindow):
         # Volume
         vol_group = Adw.PreferencesGroup(title="Audio")
         vol_row = Adw.ActionRow(title="Volume")
-        
-        vol_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER)
+
+        vol_box = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER
+        )
         vol_box.append(Gtk.Image.new_from_icon_name("audio-volume-low-symbolic"))
-        
+
         self.vol_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 255, 1)
         self.vol_scale.set_size_request(160, -1)
         self.vol_scale.set_draw_value(False)
-        self.vol_scale.connect("change-value", self.on_volume_scroll) # handle smooth scroll
+        self.vol_scale.connect("change-value", self.on_volume_scroll)  # handle smooth scroll
         self.vol_scale.connect("value-changed", self.on_volume_changed)
         vol_box.append(self.vol_scale)
         vol_box.append(Gtk.Image.new_from_icon_name("audio-volume-high-symbolic"))
-        
+
         vol_row.add_suffix(vol_box)
         vol_group.add(vol_row)
         box.append(vol_group)
@@ -368,39 +377,51 @@ class MainWindow(Adw.ApplicationWindow):
         source_row.add_suffix(self.source_dropdown)
         source_group.add(source_row)
         box.append(source_group)
-        
+
         # Advanced Picture Settings
         picture_group = Adw.PreferencesGroup(
             title="Advanced Picture Settings",
-            description="Fine-tune your projector's display capabilities"
+            description="Fine-tune your projector's display capabilities",
         )
-        
-        self.color_mode_row = Adw.ComboRow(title="Color Mode", subtitle="Requires supported hardware")
+
+        self.color_mode_row = Adw.ComboRow(
+            title="Color Mode", subtitle="Requires supported hardware"
+        )
         from .protocol import AspectRatio, ColorMode, LuminanceMode
+
         self.color_model = Gtk.StringList.new([m.name.replace("_", " ").title() for m in ColorMode])
         self.color_mode_row.set_model(self.color_model)
         self.color_mode_row.connect("notify::selected", self.on_color_mode_changed)
         picture_group.add(self.color_mode_row)
-        
+
         self.aspect_row = Adw.ComboRow(title="Aspect Ratio")
-        self.aspect_model = Gtk.StringList.new([m.name.replace("_", " ").title() for m in AspectRatio])
+        self.aspect_model = Gtk.StringList.new(
+            [m.name.replace("_", " ").title() for m in AspectRatio]
+        )
         self.aspect_row.set_model(self.aspect_model)
         self.aspect_row.connect("notify::selected", self.on_aspect_changed)
         picture_group.add(self.aspect_row)
-        
+
         self.luminance_row = Adw.ComboRow(title="Luminance (Eco Mode)")
-        self.luminance_model = Gtk.StringList.new([m.name.replace("_", " ").title() for m in LuminanceMode])
+        self.luminance_model = Gtk.StringList.new(
+            [m.name.replace("_", " ").title() for m in LuminanceMode]
+        )
         self.luminance_row.set_model(self.luminance_model)
         self.luminance_row.connect("notify::selected", self.on_luminance_changed)
         picture_group.add(self.luminance_row)
-        
+
         box.append(picture_group)
-        
+
         # Remote Control D-Pad
         remote_group = Adw.PreferencesGroup(title="Remote Control")
-        dpad_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, halign=Gtk.Align.CENTER, margin_top=12, margin_bottom=12)
+        dpad_box = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            halign=Gtk.Align.CENTER,
+            margin_top=12,
+            margin_bottom=12,
+        )
         grid = Gtk.Grid(column_spacing=8, row_spacing=8)
-        
+
         def _build_dpad_btn(icon_name: str, key_code: str, css_class="circular") -> Gtk.Button:
             if icon_name.startswith("label:"):
                 btn = Gtk.Button(label=icon_name.split(":")[1], css_classes=[css_class])
@@ -409,12 +430,18 @@ class MainWindow(Adw.ApplicationWindow):
             btn.set_size_request(48, 48)
             btn.connect("clicked", lambda x: self.on_remote_key(key_code))
             return btn
+
         # Top Row (Menu, Esc)
-        top_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=32, halign=Gtk.Align.CENTER, margin_bottom=16)
+        top_row = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            spacing=32,
+            halign=Gtk.Align.CENTER,
+            margin_bottom=16,
+        )
         top_row.append(_build_dpad_btn("label:Menu", "43", "pill"))
         top_row.append(_build_dpad_btn("label:Esc", "05", "pill"))
         dpad_box.append(top_row)
-        
+
         # D-Pad
         grid.attach(_build_dpad_btn("go-up-symbolic", "35"), 1, 0, 1, 1)
         grid.attach(_build_dpad_btn("go-previous-symbolic", "5B"), 0, 1, 1, 1)
@@ -422,60 +449,79 @@ class MainWindow(Adw.ApplicationWindow):
         grid.attach(_build_dpad_btn("go-next-symbolic", "5C"), 2, 1, 1, 1)
         grid.attach(_build_dpad_btn("go-down-symbolic", "36"), 1, 2, 1, 1)
         dpad_box.append(grid)
-        
+
         # Bottom Row (A/V Mute, Source Search)
-        bottom_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=32, halign=Gtk.Align.CENTER, margin_top=16)
+        bottom_row = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            spacing=32,
+            halign=Gtk.Align.CENTER,
+            margin_top=16,
+        )
         bottom_row.append(_build_dpad_btn("label:A/V Mute", "3E", "pill"))
         bottom_row.append(_build_dpad_btn("label:Search", "67", "pill"))
         dpad_box.append(bottom_row)
-        
+
         # Extra Row (User, Default)
-        extra_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=32, halign=Gtk.Align.CENTER, margin_top=16)
+        extra_row = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            spacing=32,
+            halign=Gtk.Align.CENTER,
+            margin_top=16,
+        )
         extra_row.append(_build_dpad_btn("label:User", "48", "pill"))
         extra_row.append(_build_dpad_btn("label:Default", "4A", "pill"))
         dpad_box.append(extra_row)
-        
+
         # Volume Row (Vol-, Vol+)
-        vol_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=32, halign=Gtk.Align.CENTER, margin_top=16)
+        vol_row = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            spacing=32,
+            halign=Gtk.Align.CENTER,
+            margin_top=16,
+        )
         vol_row.append(_build_dpad_btn("label:Vol -", "59", "pill"))
         vol_row.append(_build_dpad_btn("label:Vol +", "58", "pill"))
         dpad_box.append(vol_row)
-        
-        # We must place the dpad_box into a generic widget or a bin if inside a PreferencesGroup.
-        # However, PreferencesGroup doesn't require rows, it can accept any widget directly via add() in libadwaita >= 1.2
+
+        # We must place the dpad_box into a generic widget or a bin inside PreferencesGroup.
+        # However, PreferencesGroup doesn't require rows, it can accept any widget directly in libadwaita >= 1.2
         # Let's wrap it in a listbox row to be safe and clean.
         dpad_row = Gtk.ListBoxRow(activatable=False, selectable=False)
         dpad_row.set_child(dpad_box)
         dpad_listbox = Gtk.ListBox(css_classes=["boxed-list"])
         dpad_listbox.append(dpad_row)
-        
+
         # Adw.PreferencesGroup add() takes widgets directly, but they usually look better if they are rows.
         # In Adw 1.4+, we can just append a row.
         remote_group.add(dpad_listbox)
         box.append(remote_group)
 
         # Status
-        status_group = Adw.PreferencesGroup(title="Status", description="Real-time projector information")
+        status_group = Adw.PreferencesGroup(
+            title="Status", description="Real-time projector information"
+        )
         self.lamp_row = Adw.ActionRow(title="Lamp hours", subtitle="-")
         self.power_row = Adw.ActionRow(title="Power state", subtitle="-")
         self.source_row = Adw.ActionRow(title="Current source", subtitle="-")
         status_group.add(self.lamp_row)
         status_group.add(self.power_row)
         status_group.add(self.source_row)
-        
-        self.device_info_row = Adw.ActionRow(title="Device Information", subtitle="View hardware details")
+
+        self.device_info_row = Adw.ActionRow(
+            title="Device Information", subtitle="View hardware details"
+        )
         self.device_info_btn = Gtk.Button(label="View", valign=Gtk.Align.CENTER)
         self.device_info_btn.connect("clicked", self._show_device_info)
         self.device_info_row.add_suffix(self.device_info_btn)
         self.device_info_row.set_activatable_widget(self.device_info_btn)
         status_group.add(self.device_info_row)
-        
+
         box.append(status_group)
 
         # Cast
         cast_group = Adw.PreferencesGroup(
             title="Screen Casting",
-            description="Wirelessly mirror your screen directly to the projector"
+            description="Wirelessly mirror your screen directly to the projector",
         )
         cast_row = Adw.ActionRow(
             title="Cast Screen or Window",
@@ -489,19 +535,15 @@ class MainWindow(Adw.ApplicationWindow):
         self.cast_btn.connect("clicked", self.on_cast_clicked)
         cast_row.add_suffix(self.cast_btn)
         cast_group.add(cast_row)
-        
+
         # Split position
         self.split_pos_row = Adw.ComboRow(
             title="Multi-PC Projection",
             subtitle="Choose your quadrant (Full screen by default)",
         )
-        self.split_pos_model = Gtk.StringList.new([
-            "Full Screen",
-            "Top-Left",
-            "Top-Right",
-            "Bottom-Left",
-            "Bottom-Right"
-        ])
+        self.split_pos_model = Gtk.StringList.new(
+            ["Full Screen", "Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"]
+        )
         self.split_pos_row.set_model(self.split_pos_model)
         cast_group.add(self.split_pos_row)
 
@@ -515,28 +557,27 @@ class MainWindow(Adw.ApplicationWindow):
         audio_row.set_activatable_widget(self.audio_switch)
         cast_group.add(audio_row)
         box.append(cast_group)
-        
+
         # Advanced Console
         console_group = Adw.PreferencesGroup(
-            title="Advanced Console",
-            description="Send raw ESC/VP or PJLink commands directly"
+            title="Advanced Console", description="Send raw ESC/VP or PJLink commands directly"
         )
-        
+
         console_row = Adw.EntryRow(title="Raw Command")
         console_btn = Gtk.Button(label="Send", valign=Gtk.Align.CENTER)
         console_btn.connect("clicked", self._on_console_send_clicked, console_row)
         console_row.add_suffix(console_btn)
-        
+
         self.console_output = Gtk.Label(
-            label="Ready.", 
+            label="Ready.",
             css_classes=["dim-label", "monospace"],
             halign=Gtk.Align.START,
             wrap=True,
             margin_top=8,
             margin_start=12,
-            margin_bottom=8
+            margin_bottom=8,
         )
-        
+
         console_group.add(console_row)
         console_group.add(self.console_output)
         box.append(console_group)
@@ -609,7 +650,7 @@ class MainWindow(Adw.ApplicationWindow):
         shortcuts_action = Gio.SimpleAction.new("shortcuts", None)
         shortcuts_action.connect("activate", self._show_shortcuts)
         app.add_action(shortcuts_action)
-        
+
         refresh_action = Gio.SimpleAction.new("refresh", None)
         refresh_action.connect("activate", lambda *_: self._refresh_status())
         app.add_action(refresh_action)
@@ -623,8 +664,9 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _show_about(self, *_args) -> None:
         from .config import get_state_dir
+
         log_path = get_state_dir() / "epsonctl.log"
-        
+
         about = Adw.AboutWindow(
             transient_for=self,
             application_name="iProjection",
@@ -634,11 +676,19 @@ class MainWindow(Adw.ApplicationWindow):
             website="https://github.com/John-Varghese-EH",
             issue_url="https://github.com/John-Varghese-EH/EPSON-iProjection-For-Linux/issues",
             license_type=Gtk.License.AGPL_3_0,
-            comments="The ultimate, enterprise-grade controller for your Epson projectors.\n\nTake complete command over network and mDNS projection. Features advanced diagnostic tools, custom alias management, direct ESC/VP console access, and native PipeWire screen casting-all packaged in a sleek, responsive GTK4 design.\n\nNote: This is an unofficial, community-driven application. Not affiliated with Seiko Epson Corporation.",
+            comments="The ultimate, enterprise-grade controller for your Epson projector.\n"
+            "Take complete command over network and mDNS projection. Features advanced diagnostic tools,\n"
+            "custom alias management, direct ESC/VP console access, and native PipeWire screen casting—all\n"
+            "packaged in a sleek, responsive GTK4 design.\n\n"
+            "Note: This is an unofficial, community-driven application. Not affiliated with Seiko Epson Corporation.",
         )
         about.add_credit_section(
             "Architect &amp; Lead Developer",
-            ["John Varghese (J0X) - Hey, I'm John. I built this app because I was frustrated by the lack of native Linux support for Epson's enterprise hardware. My goal was to bridge that gap and deliver a seamless, open-source experience for professionals worldwide."],
+            [
+                "John Varghese (J0X) - Hey, I'm John. I built this app because I was frustrated\n"
+                "by the lack of native Linux support for Epson's enterprise hardware. My goal was\n"
+                "to bridge that gap and deliver a seamless, open-source experience."
+            ],
         )
         about.add_link("View Application Logs", f"file://{log_path}")
         about.add_link("Connect on LinkedIn", "https://www.linkedin.com/in/John--Varghese")
@@ -688,7 +738,9 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Streaming Quality
         stream_group = Adw.PreferencesGroup(title="Screen Casting")
-        quality_row = Adw.ComboRow(title="Stream Quality", subtitle="Adjust based on network stability")
+        quality_row = Adw.ComboRow(
+            title="Stream Quality", subtitle="Adjust based on network stability"
+        )
         quality_model = Gtk.StringList.new(["Low Latency", "Balanced", "High Quality"])
         quality_row.set_model(quality_model)
         quality_map = {"low_latency": 0, "balanced": 1, "high_quality": 2}
@@ -696,7 +748,7 @@ class MainWindow(Adw.ApplicationWindow):
         quality_row.connect("notify::selected", self._on_stream_quality_changed)
         stream_group.add(quality_row)
         general_page.add(stream_group)
-        
+
         # Appearance group
         appearance_group = Adw.PreferencesGroup(title="Appearance")
         theme_row = Adw.ComboRow(title="Color scheme")
@@ -709,47 +761,52 @@ class MainWindow(Adw.ApplicationWindow):
         general_page.add(appearance_group)
 
         prefs_win.add(general_page)
-        
+
         # Advanced Page
-        advanced_page = Adw.PreferencesPage(title="Advanced", icon_name="preferences-system-symbolic")
-        
+        advanced_page = Adw.PreferencesPage(
+            title="Advanced", icon_name="preferences-system-symbolic"
+        )
+
         # Network Settings
         network_group = Adw.PreferencesGroup(title="Network Settings")
-        
+
         timeout_row = Adw.SpinRow(
             title="Connection Timeout (seconds)",
             subtitle="Max time to wait when connecting to a projector",
-            adjustment=Gtk.Adjustment(value=self._config.connection_timeout, lower=1, upper=60, step_increment=1)
+            adjustment=Gtk.Adjustment(
+                value=self._config.connection_timeout, lower=1, upper=60, step_increment=1
+            ),
         )
         timeout_row.connect("notify::value", self._on_timeout_changed)
         network_group.add(timeout_row)
-        
+
         port_row = Adw.SpinRow(
             title="Default Port",
             subtitle="Standard ESC/VP network port",
-            adjustment=Gtk.Adjustment(value=self._config.default_port, lower=1, upper=65535, step_increment=1)
+            adjustment=Gtk.Adjustment(
+                value=self._config.default_port, lower=1, upper=65535, step_increment=1
+            ),
         )
         port_row.connect("notify::value", self._on_port_changed)
         network_group.add(port_row)
-        
+
         advanced_page.add(network_group)
-        
+
         # Security Settings
         security_group = Adw.PreferencesGroup(title="Security")
         pwd_row = Adw.PasswordEntryRow(
-            title="PJLink Password",
-            text=self._config.pjlink_password or ""
+            title="PJLink Password", text=self._config.pjlink_password or ""
         )
         pwd_row.connect("notify::text", self._on_pwd_changed)
         security_group.add(pwd_row)
         advanced_page.add(security_group)
-        
+
         # Diagnostics
         diag_group = Adw.PreferencesGroup(title="Diagnostics")
         debug_row = Adw.SwitchRow(
             title="Enable Debug Logging",
             subtitle="Write verbose payload traces to epsonctl.log",
-            active=self._config.debug_mode
+            active=self._config.debug_mode,
         )
         debug_row.connect("notify::active", self._on_debug_changed)
         diag_group.add(debug_row)
@@ -761,20 +818,21 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_timeout_changed(self, row, _pspec) -> None:
         self._config.connection_timeout = int(row.get_value())
         save_config(self._config)
-        
+
     def _on_port_changed(self, row, _pspec) -> None:
         self._config.default_port = int(row.get_value())
         save_config(self._config)
-        
+
     def _on_pwd_changed(self, row, _pspec) -> None:
         self._config.pjlink_password = row.get_text()
         save_config(self._config)
-        
+
     def _on_debug_changed(self, row, _pspec) -> None:
         self._config.debug_mode = row.get_active()
         save_config(self._config)
         # Apply logging dynamically
         from .config import setup_logging
+
         setup_logging(verbose=self._config.debug_mode)
 
     def _on_poll_interval_changed(self, row, _pspec) -> None:
@@ -792,7 +850,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._config.theme = themes.get(idx, "system")
         save_config(self._config)
         self._apply_theme()
-        
+
     def _on_stream_quality_changed(self, row, _pspec) -> None:
         idx = row.get_selected()
         qualities = {0: "low_latency", 1: "balanced", 2: "high_quality"}
@@ -846,7 +904,8 @@ class MainWindow(Adw.ApplicationWindow):
             return
         interval = max(5, self._config.polling_interval)
         self._polling_source_id = GLib.timeout_add_seconds(
-            interval, self._poll_tick,
+            interval,
+            self._poll_tick,
         )
 
     def _stop_polling(self) -> None:
@@ -895,38 +954,37 @@ class MainWindow(Adw.ApplicationWindow):
         # Also merge with persisted devices and map aliases
         persisted = self._device_store.load_devices()
         persisted_dict = {pd.get("address"): pd for pd in persisted}
-        
+
         seen_addrs = {d.address for d in devices}
-        
+
         # Apply aliases to discovered devices
         for d in devices:
             if d.address in persisted_dict:
                 d.alias = persisted_dict[d.address].get("alias")
-                
+
         # Add persisted ones that aren't discovered
         for pd in persisted:
             if pd.get("address") not in seen_addrs:
-                devices.append(DiscoveredDevice(
-                    name=pd.get("name", pd.get("address", "?")),
-                    address=pd.get("address", "?"),
-                    port=pd.get("port", 3629),
-                    source="persisted",
-                    alias=pd.get("alias")
-                ))
+                devices.append(
+                    DiscoveredDevice(
+                        name=pd.get("name", pd.get("address", "?")),
+                        address=pd.get("address", "?"),
+                        port=pd.get("port", 3629),
+                        source="persisted",
+                        alias=pd.get("alias"),
+                    )
+                )
 
         for d in devices:
             self.device_list.append(DeviceRow(d))
 
         # Save discovered devices
-        self._device_store.save_devices([
-            {
-                "name": d.name, 
-                "address": d.address, 
-                "port": d.port,
-                "alias": d.alias
-            }
-            for d in devices
-        ])
+        self._device_store.save_devices(
+            [
+                {"name": d.name, "address": d.address, "port": d.port, "alias": d.alias}
+                for d in devices
+            ]
+        )
 
         if devices:
             self.sidebar_stack.set_visible_child_name("list")
@@ -1002,7 +1060,9 @@ class MainWindow(Adw.ApplicationWindow):
             if error:
                 log.warning("Status query failed: %s", error)
                 self.power_row.set_subtitle("Unreachable")
-                self._toast(f"Connection failed: {error}", action_name="Retry", action_target="app.refresh")
+                self._toast(
+                    f"Connection failed: {error}", action_name="Retry", action_target="app.refresh"
+                )
                 return
             if status.power:
                 pwr_val = status.power
@@ -1013,12 +1073,12 @@ class MainWindow(Adw.ApplicationWindow):
                     pwr_active = pwr_val in ("01", "02")
                 else:
                     pwr_active = False
-                
+
                 # Disconnect briefly to avoid self-triggering
                 self.power_btn.handler_block_by_func(self.on_power_toggled)
                 self.power_btn.set_active(pwr_active)
                 self.power_btn.handler_unblock_by_func(self.on_power_toggled)
-                
+
                 power_names = {
                     "00": "Off",
                     "01": "On",
@@ -1027,14 +1087,18 @@ class MainWindow(Adw.ApplicationWindow):
                     "04": "Standby",
                     "05": "Abnormal standby",
                 }
-                subtitle = power_names.get(str(pwr_val), str(pwr_val)) if not isinstance(pwr_val, bool) else ("On" if pwr_val else "Off")
+                subtitle = (
+                    power_names.get(str(pwr_val), str(pwr_val))
+                    if not isinstance(pwr_val, bool)
+                    else ("On" if pwr_val else "Off")
+                )
                 self.power_row.set_subtitle(subtitle)
-            
+
             if status.mute is not None:
                 self.mute_btn.handler_block_by_func(self.on_mute_toggled)
                 self.mute_btn.set_active(status.mute)
                 self.mute_btn.handler_unblock_by_func(self.on_mute_toggled)
-                
+
             if status.volume is not None:
                 self.vol_scale.handler_block_by_func(self.on_volume_changed)
                 self.vol_scale.set_value(status.volume)
@@ -1068,13 +1132,20 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Basic Info
         group.add(Adw.ActionRow(title="IP Address", subtitle=self.current_device.address))
-        group.add(Adw.ActionRow(title="Original Name", subtitle=self.current_device.name or "Unknown"))
-        
+        group.add(
+            Adw.ActionRow(title="Original Name", subtitle=self.current_device.name or "Unknown")
+        )
+
         alias_row = Adw.EntryRow(title="Friendly Alias", text=self.current_device.alias or "")
         alias_row.connect("notify::text", self._on_alias_changed)
         group.add(alias_row)
-        
-        group.add(Adw.ActionRow(title="Device Type", subtitle=self.current_device.device_type.replace("_", " ").title()))
+
+        group.add(
+            Adw.ActionRow(
+                title="Device Type",
+                subtitle=self.current_device.device_type.replace("_", " ").title(),
+            )
+        )
 
         # Status Info
         if hasattr(self, "_latest_status") and self._latest_status:
@@ -1083,54 +1154,68 @@ class MainWindow(Adw.ApplicationWindow):
                 group.add(Adw.ActionRow(title="Serial Number", subtitle=status.serial))
             if status.errors:
                 group.add(Adw.ActionRow(title="Current Errors", subtitle=status.errors))
-            group.add(Adw.ActionRow(title="Lamp Hours", subtitle=f"{status.lamp_hours} h" if status.lamp_hours else "Unknown"))
+            group.add(
+                Adw.ActionRow(
+                    title="Lamp Hours",
+                    subtitle=f"{status.lamp_hours} h" if status.lamp_hours else "Unknown",
+                )
+            )
 
         # Actions Group
         action_group = Adw.PreferencesGroup()
-        
+
         wol_row = Adw.ActionRow(title="Wake-on-LAN", subtitle="Wake projector from deep standby")
         wol_btn = Gtk.Button(label="Wake", valign=Gtk.Align.CENTER)
         wol_btn.connect("clicked", self._on_wol_clicked)
         wol_row.add_suffix(wol_btn)
         wol_row.set_activatable_widget(wol_btn)
         action_group.add(wol_row)
-        
-        export_row = Adw.ActionRow(title="Export Information", subtitle="Save hardware details to CSV")
+
+        export_row = Adw.ActionRow(
+            title="Export Information", subtitle="Save hardware details to CSV"
+        )
         export_btn = Gtk.Button(label="Export", valign=Gtk.Align.CENTER)
         export_btn.connect("clicked", self._on_export_clicked)
         export_row.add_suffix(export_btn)
         export_row.set_activatable_widget(export_btn)
         action_group.add(export_row)
-        
+
         box.append(action_group)
 
         dialog.set_extra_child(box)
         dialog.present(self)
-        
+
     def _on_wol_clicked(self, _button) -> None:
         if not self.current_device:
             return
         self._toast(f"Broadcasting Wake-on-LAN magic packet for {self.current_device.address}...")
-        
+
         # Run in background
         from .client import wake_on_lan
+
         def run_wol():
             success = wake_on_lan(self.current_device.address)
-            GLib.idle_add(lambda: self._toast("Wake packet sent." if success else "Failed to send wake packet."))
+            GLib.idle_add(
+                lambda: self._toast(
+                    "Wake packet sent." if success else "Failed to send wake packet."
+                )
+            )
+
         import threading
+
         threading.Thread(target=run_wol, daemon=True).start()
-        
+
     def _on_export_clicked(self, _button) -> None:
         if not self.current_device:
             return
-        
+
         # Build CSV content
         lines = ["Property,Value"]
         lines.append(f"IP Address,{self.current_device.address}")
         lines.append(f"Name,{self.current_device.name or 'Unknown'}")
         if self.current_device.alias:
             lines.append(f"Alias,{self.current_device.alias}")
-        
+
         if hasattr(self, "_latest_status") and self._latest_status:
             status = self._latest_status
             if status.serial:
@@ -1139,12 +1224,13 @@ class MainWindow(Adw.ApplicationWindow):
                 lines.append(f"Lamp Hours,{status.lamp_hours}")
             if status.errors:
                 lines.append(f"Errors,{status.errors}")
-                
+
         csv_content = "\\n".join(lines)
-        
+
         from .config import get_state_dir
+
         export_path = get_state_dir() / f"projector_{self.current_device.address}.csv"
-        
+
         try:
             with open(export_path, "w") as f:
                 f.write(csv_content)
@@ -1159,7 +1245,7 @@ class MainWindow(Adw.ApplicationWindow):
         if not cmd:
             return
         self.console_output.set_label(f"> {cmd}\nSending...")
-        
+
         @_run_async(self._client.send_raw(cmd))
         def done(result, error):
             if error:
@@ -1174,22 +1260,26 @@ class MainWindow(Adw.ApplicationWindow):
             return
         new_alias = entry.get_text().strip()
         self.current_device.alias = new_alias if new_alias else None
-        
+
         # Save to store
         persisted = self._device_store.load_devices()
         for p in persisted:
             if p.get("address") == self.current_device.address:
                 p["alias"] = self.current_device.alias
         self._device_store.save_devices(persisted)
-        
+
         # Update row in UI
         for child in self.device_list:
             if isinstance(child, DeviceRow) and child.device.address == self.current_device.address:
                 child.update_from(self.current_device)
                 break
-        
+
         # Update title in control panel
-        title = self.current_device.alias if self.current_device.alias else (self.current_device.name or self.current_device.address)
+        title = (
+            self.current_device.alias
+            if self.current_device.alias
+            else (self.current_device.name or self.current_device.address)
+        )
         self.device_title.set_label(title)
 
     def on_power_toggled(self, button: Gtk.ToggleButton) -> None:
@@ -1229,7 +1319,7 @@ class MainWindow(Adw.ApplicationWindow):
         def done(_result, error):
             if error:
                 self._toast(f"Mute command failed: {error}")
-                
+
     def on_freeze_toggled(self, button: Gtk.ToggleButton) -> None:
         if not self.current_device:
             return
@@ -1245,7 +1335,7 @@ class MainWindow(Adw.ApplicationWindow):
         def done(_result, error):
             if error:
                 self._toast(f"Freeze command failed: {error}")
-                
+
     def on_remote_key(self, key_code: str) -> None:
         if not self.current_device:
             return
@@ -1260,7 +1350,7 @@ class MainWindow(Adw.ApplicationWindow):
         def done(_result, error):
             if error:
                 self._toast(f"Key command failed: {error}")
-                
+
     def _do_set_volume(self, value: float) -> None:
         if not self.current_device:
             return
@@ -1275,10 +1365,10 @@ class MainWindow(Adw.ApplicationWindow):
         def done(_result, error):
             if error:
                 self._toast(f"Volume command failed: {error}")
-                
+
     def on_volume_changed(self, scale: Gtk.Scale) -> None:
         self._do_set_volume(scale.get_value())
-        
+
     def on_volume_scroll(self, scale, scroll, value) -> bool:
         # For smooth scrolls (if connected to change-value), we can debounce this
         # or just let it update. We will rely on value-changed for simplicity.
@@ -1290,7 +1380,7 @@ class MainWindow(Adw.ApplicationWindow):
         source = list(Source)[dropdown.get_selected()]
         host = self.current_device.address
         device_type = self.current_device.device_type
-        
+
         async def cmd():
             async with ProjectorClient(host, device_type) as client:
                 await client.set_source(source)
@@ -1308,10 +1398,11 @@ class MainWindow(Adw.ApplicationWindow):
         if not self.current_device:
             return
         from .protocol import ColorMode
+
         mode = list(ColorMode)[dropdown.get_selected()]
         host = self.current_device.address
         device_type = self.current_device.device_type
-        
+
         async def cmd():
             async with ProjectorClient(host, device_type) as client:
                 await client.set_color_mode(mode)
@@ -1327,10 +1418,11 @@ class MainWindow(Adw.ApplicationWindow):
         if not self.current_device:
             return
         from .protocol import AspectRatio
+
         aspect = list(AspectRatio)[dropdown.get_selected()]
         host = self.current_device.address
         device_type = self.current_device.device_type
-        
+
         async def cmd():
             async with ProjectorClient(host, device_type) as client:
                 await client.set_aspect_ratio(aspect)
@@ -1346,10 +1438,11 @@ class MainWindow(Adw.ApplicationWindow):
         if not self.current_device:
             return
         from .protocol import LuminanceMode
+
         lum = list(LuminanceMode)[dropdown.get_selected()]
         host = self.current_device.address
         device_type = self.current_device.device_type
-        
+
         async def cmd():
             async with ProjectorClient(host, device_type) as client:
                 await client.set_luminance(lum)
@@ -1380,8 +1473,8 @@ class MainWindow(Adw.ApplicationWindow):
 
                 target = CastTarget(
                     host=device.address,
-                    port=getattr(device, 'stream_port', 5004),
-                    audio_port=getattr(device, 'audio_port', 5006),
+                    port=getattr(device, "stream_port", 5004),
+                    audio_port=getattr(device, "audio_port", 5006),
                     name=device.name or device.address,
                 )
 
@@ -1422,13 +1515,13 @@ class MainWindow(Adw.ApplicationWindow):
         GLib.idle_add(self._update_cast_stats, stats)
 
     def _update_cast_stats(self, stats) -> None:
-        if hasattr(stats, 'bitrate_kbps'):
+        if hasattr(stats, "bitrate_kbps"):
             br = stats.bitrate_kbps
             if br > 1000:
-                self.stats_bitrate_row.set_subtitle(f"{br/1000:.1f} Mbps")
+                self.stats_bitrate_row.set_subtitle(f"{br / 1000:.1f} Mbps")
             else:
                 self.stats_bitrate_row.set_subtitle(f"{br:.0f} kbps")
-        audio_str = "Audio: Active" if getattr(stats, 'audio_active', False) else "Audio: Off"
+        audio_str = "Audio: Active" if getattr(stats, "audio_active", False) else "Audio: Off"
         self.stats_fps_row.set_subtitle(audio_str)
 
     def _on_cast_error(self, error_msg: str) -> None:
@@ -1462,9 +1555,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.toast_overlay.add_toast(toast)
 
 
-
-
 # Application
+
 
 class EpsonCtlApp(Adw.Application):
     def __init__(self):
@@ -1481,19 +1573,21 @@ class EpsonCtlApp(Adw.Application):
 
     def do_startup(self) -> None:
         Adw.Application.do_startup(self)
-        
+
         # Load compiled GResource for icons (bulletproof GTK4 approach)
         import os
-        from gi.repository import Gio, Gdk
+
+        from gi.repository import Gdk, Gio
+
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        
+
         # Check local source tree first, then fallback to system installation path
         gresource_paths = [
             os.path.join(base_dir, "data", "epsonctl.gresource"),
             "/usr/share/epsonctl/epsonctl.gresource",
-            os.path.join(sys.prefix, "share", "epsonctl", "epsonctl.gresource")
+            os.path.join(sys.prefix, "share", "epsonctl", "epsonctl.gresource"),
         ]
-        
+
         for path in gresource_paths:
             if os.path.isfile(path):
                 try:
@@ -1507,7 +1601,7 @@ class EpsonCtlApp(Adw.Application):
                     break
                 except Exception as e:
                     print(f"Warning: Failed to load resource {path}: {e}")
-            
+
         # Theme follows system by default
         config = load_config()
         sm = Adw.StyleManager.get_default()
@@ -1520,6 +1614,7 @@ class EpsonCtlApp(Adw.Application):
 
 
 # Entry point
+
 
 def main() -> int:
     """Application entry point."""

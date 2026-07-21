@@ -75,6 +75,7 @@ async def _volume(args):
 
 def _wake(args):
     from .client import wake_on_lan
+
     success = wake_on_lan(args.mac)
     if success:
         print(f"Sent Wake-On-LAN magic packet to {args.mac}.")
@@ -86,7 +87,7 @@ def _wake(args):
 def main():
     parser = argparse.ArgumentParser(
         prog="epsonctl",
-        description="Native Linux control app for Epson projectors (ESC/VP.net + EShare)"
+        description="Native Linux control app for Epson projectors (ESC/VP.net + EShare)",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 

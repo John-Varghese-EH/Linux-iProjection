@@ -34,8 +34,17 @@ SERVICE_TYPES = [
 ]
 
 HTTP_KEYWORDS = [
-    "eshare", "screen", "cast", "display", "receiver", 
-    "epson", "projector", "pj", "eb-", "ex-", "powerlite"
+    "eshare",
+    "screen",
+    "cast",
+    "display",
+    "receiver",
+    "epson",
+    "projector",
+    "pj",
+    "eb-",
+    "ex-",
+    "powerlite",
 ]
 
 SCAN_TIMEOUT = 0.4
@@ -115,9 +124,7 @@ async def discover_mdns(timeout: float = 3.0) -> list[DiscoveredDevice]:
     results: list[DiscoveredDevice] = []
     async with AsyncZeroconf() as azc:
         listener = _CollectingListener(results)
-        browsers = [
-            AsyncServiceBrowser(azc.zeroconf, svc, listener) for svc in SERVICE_TYPES
-        ]
+        browsers = [AsyncServiceBrowser(azc.zeroconf, svc, listener) for svc in SERVICE_TYPES]
         await asyncio.sleep(timeout)
         for b in browsers:
             await b.async_cancel()
@@ -153,13 +160,13 @@ async def _probe(ip: str, port: int, sem: asyncio.Semaphore) -> DiscoveredDevice
             except OSError:
                 pass
             return DiscoveredDevice(
-                name=ip, 
-                address=ip, 
-                port=port, 
+                name=ip,
+                address=ip,
+                port=port,
                 source="scan",
                 device_type="projector",
                 stream_port=5004,
-                audio_port=5006
+                audio_port=5006,
             )
         except (OSError, asyncio.TimeoutError):
             return None
@@ -170,7 +177,7 @@ async def discover_by_scan(
 ) -> list[DiscoveredDevice]:
     if ports is None:
         ports = [ESCVP_PORT, PJLINK_PORT]
-    
+
     networks = [network] if network else _local_ipv4_networks()
     if not networks:
         log.warning("Could not determine local subnet - enter the projector IP manually")

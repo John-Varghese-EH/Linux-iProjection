@@ -115,7 +115,9 @@ class FakeEscVpServer:
 
     async def start(self):
         self._server = await asyncio.start_server(
-            self._handle_client, self.host, self.port,
+            self._handle_client,
+            self.host,
+            self.port,
         )
         # Get the actual port assigned
         addr = self._server.sockets[0].getsockname()

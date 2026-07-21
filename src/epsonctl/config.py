@@ -15,6 +15,7 @@ from typing import Dict, List, Optional
 try:
     from gi.repository import GLib
 except ImportError:
+
     class GLib:
         @staticmethod
         def get_user_config_dir():
@@ -26,8 +27,8 @@ class AppConfig:
     polling_interval: int = 10
     default_source: Optional[str] = None
     auto_connect: bool = False
-    theme: str = 'system'
-    stream_quality: str = 'balanced'  # 'low_latency', 'balanced', 'high_quality'
+    theme: str = "system"
+    stream_quality: str = "balanced"  # 'low_latency', 'balanced', 'high_quality'
     connection_timeout: int = 5
     default_port: int = 3629
     pjlink_password: str = ""
@@ -93,7 +94,7 @@ class DeviceStore:
             "name": name,
             "ip": ip,
             "port": port,
-            "last_seen_sources": source_list or []
+            "last_seen_sources": source_list or [],
         }
         self.save()
 
@@ -120,20 +121,12 @@ def setup_logging(verbose: bool = False):
     log_level = logging.DEBUG if verbose else logging.INFO
     log_file = get_state_dir() / "epsonctl.log"
 
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-    file_handler = RotatingFileHandler(
-        log_file, maxBytes=5 * 1024 * 1024, backupCount=2
-    )
+    file_handler = RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=2)
     file_handler.setFormatter(formatter)
-    
+
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
 
-    logging.basicConfig(
-        level=log_level,
-        handlers=[file_handler, console_handler],
-        force=True
-    )
+    logging.basicConfig(level=log_level, handlers=[file_handler, console_handler], force=True)

@@ -32,9 +32,9 @@ log = logging.getLogger(__name__)
 
 # ── Protocol constants ────────────────────────────────────────────────────────
 
-PJLINK_PORT        = 4352
-CONNECT_TIMEOUT    = 10.0
-COMMAND_TIMEOUT    = 5.0
+PJLINK_PORT = 4352
+CONNECT_TIMEOUT = 10.0
+COMMAND_TIMEOUT = 5.0
 KEEPALIVE_INTERVAL = 45.0
 
 # PJLink power state codes
@@ -42,10 +42,14 @@ POWER_STATES = {"0": "Standby", "1": "On", "2": "Cooling", "3": "Warming"}
 
 # PJLink input codes → friendly names (Class 1)
 INPUT_NAMES: dict[str, str] = {
-    "11": "RGB 1",   "12": "RGB 2",
-    "21": "Video 1", "22": "Video 2",
-    "31": "HDMI 1",  "32": "HDMI 2",
-    "41": "Storage", "51": "Network",
+    "11": "RGB 1",
+    "12": "RGB 2",
+    "21": "Video 1",
+    "22": "Video 2",
+    "31": "HDMI 1",
+    "32": "HDMI 2",
+    "41": "Storage",
+    "51": "Network",
 }
 
 # ERST error positions
@@ -54,14 +58,14 @@ ERST_LABELS = ["Fan", "Lamp", "Temperature", "Cover", "Filter", "Other"]
 
 @dataclass
 class PJLinkStatus:
-    power:      str = "?"
+    power: str = "?"
     input_code: str = "?"
     lamp_hours: int = 0
-    lamp_on:    bool = False
-    errors:     list[str] = None   # type: ignore[assignment]
-    name:       str = ""
+    lamp_on: bool = False
+    errors: list[str] = None  # type: ignore[assignment]
+    name: str = ""
     manufacturer: str = ""
-    model:      str = ""
+    model: str = ""
     pjlink_class: int = 1
 
     def __post_init__(self):
@@ -80,6 +84,7 @@ class PJLinkStatus:
 # ──────────────────────────────────────────────────────────────────────────────
 # Controller
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class PJLinkController:
     """
@@ -105,15 +110,15 @@ class PJLinkController:
         password: str = "",
         pjlink_class: int = 1,
     ) -> None:
-        self._host   = host
-        self._port   = port
+        self._host = host
+        self._port = port
         self._password = password
-        self._class  = pjlink_class
+        self._class = pjlink_class
         self._prefix = f"%{pjlink_class}"
 
-        self._reader: Optional[asyncio.StreamReader]  = None
-        self._writer: Optional[asyncio.StreamWriter]  = None
-        self._auth_hash: str = ""           # MD5(salt+password) or ""
+        self._reader: Optional[asyncio.StreamReader] = None
+        self._writer: Optional[asyncio.StreamWriter] = None
+        self._auth_hash: str = ""  # MD5(salt+password) or ""
         self._lock = asyncio.Lock()
         self._keepalive_task: Optional[asyncio.Task] = None
         self.connected = False
@@ -129,42 +134,34 @@ class PJLinkController:
         )
 
         # Read greeting line: "%1PJLINK 0\r" or "%1PJLINK 1 <salt>\r"
-        greeting = (await asyncio.wait_for(
-            self._reader.readline(), timeout=CONNECT_TIMEOUT
-        )).decode("ascii", errors="replace").strip()
+        greeting = (
+            (await asyncio.wait_for(self._reader.readline(), timeout=CONNECT_TIMEOUT))
+            .decode("ascii", errors="replace")
+            .strip()
+        )
 
         log.debug("PJLink greeting: %r", greeting)
 
         if "PJLINK 1" in greeting:
             # Authentication required - derive MD5 hash
             parts = greeting.split()
-            salt  = parts[-1] if len(parts) >= 3 else ""
+            salt = parts[-1] if len(parts) >= 3 else ""
             if not self._password:
-                raise ConnectionError(
-                    f"Projector at {self._host} requires a PJLink password."
-                )
-            self._auth_hash = hashlib.md5(
-                (salt + self._password).encode("utf-8")
-            ).hexdigest()
+                raise ConnectionError(f"Projector at {self._host} requires a PJLink password.")
+            self._auth_hash = hashlib.md5((salt + self._password).encode("utf-8")).hexdigest()
             log.debug("PJLink auth hash computed (salt=%r)", salt)
         elif "PJLINK 0" in greeting:
             self._auth_hash = ""
             log.debug("PJLink: no authentication required")
         elif "ERRA" in greeting:
-            raise ConnectionError(
-                f"PJLink authentication error from {self._host}: {greeting}"
-            )
+            raise ConnectionError(f"PJLink authentication error from {self._host}: {greeting}")
         else:
-            raise ConnectionError(
-                f"Unexpected PJLink greeting from {self._host}: {greeting!r}"
-            )
+            raise ConnectionError(f"Unexpected PJLink greeting from {self._host}: {greeting!r}")
 
         self.connected = True
         log.info("PJLink session established with %s (class %d)", self._host, self._class)
 
-        self._keepalive_task = asyncio.create_task(
-            self._keepalive_loop(), name="pjlink-keepalive"
-        )
+        self._keepalive_task = asyncio.create_task(self._keepalive_loop(), name="pjlink-keepalive")
 
     async def disconnect(self) -> None:
         """Close the PJLink TCP session."""
@@ -232,22 +229,22 @@ class PJLinkController:
         """Query all available projector status fields."""
         status = PJLinkStatus()
         try:
-            status.power      = await self.query_power()
+            status.power = await self.query_power()
             status.input_code = await self.query_input()
-            lamp_resp         = self._extract_value(await self._command("LAMP", "?"))
+            lamp_resp = self._extract_value(await self._command("LAMP", "?"))
             parts = lamp_resp.split()
             if parts:
                 status.lamp_hours = int(parts[0]) if parts[0].isdigit() else 0
-                status.lamp_on    = parts[1] == "1" if len(parts) > 1 else False
+                status.lamp_on = parts[1] == "1" if len(parts) > 1 else False
 
             erst = self._extract_value(await self._command("ERST", "?"))
-            status.errors = [
-                ERST_LABELS[i] for i, ch in enumerate(erst) if ch != "0"
-            ] if len(erst) == 6 else []
+            status.errors = (
+                [ERST_LABELS[i] for i, ch in enumerate(erst) if ch != "0"] if len(erst) == 6 else []
+            )
 
-            status.name         = self._extract_value(await self._command("NAME", "?"))
+            status.name = self._extract_value(await self._command("NAME", "?"))
             status.manufacturer = self._extract_value(await self._command("INF1", "?"))
-            status.model        = self._extract_value(await self._command("INF2", "?"))
+            status.model = self._extract_value(await self._command("INF2", "?"))
         except Exception as exc:
             log.warning("PJLink query_status partial failure: %s", exc)
         return status
@@ -320,11 +317,13 @@ class PJLinkController:
 
 if __name__ == "__main__":
     import argparse
-    logging.basicConfig(level=logging.DEBUG,
-                        format="%(asctime)s %(levelname)-8s %(name)s - %(message)s")
+
+    logging.basicConfig(
+        level=logging.DEBUG, format="%(asctime)s %(levelname)-8s %(name)s - %(message)s"
+    )
     p = argparse.ArgumentParser(description="Interactive PJLink CLI")
     p.add_argument("host", nargs="?", default="127.0.0.1")
-    p.add_argument("--port",     type=int, default=PJLINK_PORT)
+    p.add_argument("--port", type=int, default=PJLINK_PORT)
     p.add_argument("--password", default="")
     args = p.parse_args()
 

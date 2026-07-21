@@ -65,9 +65,9 @@ class CastTarget:
     """Where to send the stream."""
 
     host: str
-    port: int = 5004         # video RTP port
-    audio_port: int = 5006   # audio RTP port
-    name: str = ""           # display name for UI
+    port: int = 5004  # video RTP port
+    audio_port: int = 5006  # audio RTP port
+    name: str = ""  # display name for UI
 
 
 # Sink abstraction
@@ -114,7 +114,7 @@ def _probe_encoder(preset: EncoderPreset = EncoderPreset.AUTO, quality: str = "b
         x264_params = "bitrate=8000 speed-preset=fast tune=zerolatency key-int-max=60"
         vaapi_params = "rate-control=cbr bitrate=8000 keyframe-period=60"
         nvenc_params = "bitrate=8000000 preset-level=HighQualityPreset"
-    else: # balanced
+    else:  # balanced
         x264_params = "bitrate=4000 speed-preset=veryfast tune=zerolatency key-int-max=30"
         vaapi_params = "rate-control=cbr bitrate=4000 keyframe-period=30"
         nvenc_params = "bitrate=4000000 preset-level=FastPreset"
@@ -223,10 +223,15 @@ async def _request_portal_stream() -> Optional[int]:
         req1 = f"req_{token}_1"
         result = await call_and_wait(
             "CreateSession",
-            GLib.Variant("(a{sv})", ({
-                "session_handle_token": GLib.Variant("s", session_token),
-                "handle_token": GLib.Variant("s", req1),
-            },)),
+            GLib.Variant(
+                "(a{sv})",
+                (
+                    {
+                        "session_handle_token": GLib.Variant("s", session_token),
+                        "handle_token": GLib.Variant("s", req1),
+                    },
+                ),
+            ),
             req1,
         )
         session_handle = result.get("session_handle", "")
@@ -238,11 +243,17 @@ async def _request_portal_stream() -> Optional[int]:
         req2 = f"req_{token}_2"
         await call_and_wait(
             "SelectSources",
-            GLib.Variant("(oa{sv})", (session_handle, {
-                "types": GLib.Variant("u", 3),       # 1=Monitor, 2=Window -> 3=Both
-                "cursor_mode": GLib.Variant("u", 2),  # 2 = metadata
-                "handle_token": GLib.Variant("s", req2),
-            })),
+            GLib.Variant(
+                "(oa{sv})",
+                (
+                    session_handle,
+                    {
+                        "types": GLib.Variant("u", 3),  # 1=Monitor, 2=Window -> 3=Both
+                        "cursor_mode": GLib.Variant("u", 2),  # 2 = metadata
+                        "handle_token": GLib.Variant("s", req2),
+                    },
+                ),
+            ),
             req2,
         )
         log.info("Portal sources selected")
@@ -251,9 +262,16 @@ async def _request_portal_stream() -> Optional[int]:
         req3 = f"req_{token}_3"
         start_result = await call_and_wait(
             "Start",
-            GLib.Variant("(osa{sv})", (session_handle, "", {
-                "handle_token": GLib.Variant("s", req3),
-            })),
+            GLib.Variant(
+                "(osa{sv})",
+                (
+                    session_handle,
+                    "",
+                    {
+                        "handle_token": GLib.Variant("s", req3),
+                    },
+                ),
+            ),
             req3,
         )
 
@@ -365,7 +383,10 @@ class ScreenCaster:
 
         log.info(
             "Casting started → %s:%d (video) %s:%d (audio)",
-            target.host, target.port, target.host, target.audio_port,
+            target.host,
+            target.port,
+            target.host,
+            target.audio_port,
         )
         return True
 
@@ -391,7 +412,10 @@ class ScreenCaster:
         log.info("Casting stopped")
 
     def _build_pipeline(
-        self, target: CastTarget, node_id: int | None, is_file: bool,
+        self,
+        target: CastTarget,
+        node_id: int | None,
+        is_file: bool,
     ) -> str:
         """Construct the full pipeline description string."""
         # Video source
