@@ -59,12 +59,13 @@ dist-tar:
 		--transform='s,^,epsonctl-$(VERSION)/,' \
 		--exclude='.git' --exclude='__pycache__' --exclude='.venv' \
 		--exclude='dist' --exclude='build-dir' --exclude='reference' \
-		--exclude='*.egg-info' \
+		--exclude='*.egg-info' --exclude='.pytest_cache' --exclude='.ruff_cache' \
+		--exclude='scratch.py' \
 		src/ data/ tests/ docs/ packaging/ PKGBUILD \
 		pyproject.toml Makefile LICENSE README.md \
 		THIRD_PARTY_NOTICES.md run.sh
 	@echo "Created dist/epsonctl-$(VERSION).tar.gz"
 
 clean:
-	rm -rf .venv dist build-dir *.egg-info
+	rm -rf .venv dist build-dir build-deb build-aur .flatpak-builder *.egg-info .pytest_cache .ruff_cache
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

@@ -16,8 +16,14 @@ htmlcov/
 
 # Build and Distribution
 build/
-develop-eggs/
+build-deb/
+build-aur/
+build-dir/
+.flatpak-builder/
 dist/
+*.deb
+*.pkg.tar.*
+*.AppImage
 downloads/
 eggs/
 .eggs/
@@ -50,6 +56,6 @@ wheels/
 
 # Workspace
 .agents/
-scratch_*.py
+scratch*.py
 test_about*.py
 test_icon.py
