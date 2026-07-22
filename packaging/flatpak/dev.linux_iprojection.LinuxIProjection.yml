@@ -1,7 +1,7 @@
 # linux-iprojection - Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
 app-id: dev.linux_iprojection.LinuxIProjection
 runtime: org.gnome.Platform
-runtime-version: '47'
+runtime-version: '48'
 sdk: org.gnome.Sdk
 command: linux-iprojection
 finish-args:
