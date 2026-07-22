@@ -164,7 +164,7 @@ async def test_enterprise_features(fake_server):
         assert result == 160
         
         # Color Temp
-        from linux_iprojection.protocol import KeystoneAxis, ColorTemp
+        from linux_iprojection.protocol import ColorTemp, KeystoneAxis
         await client.set_color_temp(ColorTemp.HIGH)
         result = await client.get_color_temp()
         assert result == "00"
