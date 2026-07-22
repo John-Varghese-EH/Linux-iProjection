@@ -1,7 +1,7 @@
 <div align="center">
   <img src="data/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg" width="128" alt="iProjection Logo"/>
-  <h1>iProjection (Unofficial)</h1>
-  <p><b>Native control and screen casting for Epson projectors on Linux.</b></p>
+  <h1>iProjection for Linux (Unofficial)</h1>
+  <p><b>The ultimate Epson projector software for Linux. Provides native control, screen casting, and serves as an alternative Epson software/driver for Linux.</b></p>
   
   [![CI](https://github.com/John-Varghese-EH/Linux-iProjection/actions/workflows/ci.yml/badge.svg)](https://github.com/John-Varghese-EH/Linux-iProjection/actions/workflows/ci.yml)
   [![AUR Package](https://img.shields.io/aur/version/linux-iprojection)](https://aur.archlinux.org/packages/linux-iprojection)
@@ -11,6 +11,8 @@
 </div>
 
 A native Linux application for controlling and casting to Epson projectors. Provides complete network control via ESC/VP.net, PJLink, and EShare protocols, featuring a GTK4/libadwaita interface alongside a full-featured CLI for scripting.
+
+If you are looking for **Epson iProjection for Linux**, this open-source client provides a comprehensive alternative to the official Epson projector software/driver, enabling seamless screen mirroring and remote control natively on Linux distributions.
 
 ## Core Capabilities
 
