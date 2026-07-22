@@ -62,19 +62,13 @@ jobs:
         name: "iProjection for Linux Release ${{ github.ref_name }}"
         body: |
           🚀 **New Release for iProjection (Linux)**
-          # Linux-iProjection v1.0.2
+          # Linux-iProjection ${{ github.ref_name }}
           
-          We are excited to announce **v1.0.2** of Linux-iProjection, a native Linux control & casting app for Epson projectors (ESC/VP.net + EShare). This release brings significant enterprise stability, an upgraded CLI, and several under-the-hood quality-of-life improvements.
+          Excited to announce **${{ github.ref_name }}** of Linux-iProjection, a native Linux control & casting app for Epson projectors (ESC/VP.net + EShare). This release brings significant stability, performance upgrades, and quality-of-life improvements.
           
-          ## 🚀 What's New in v1.0.2
+          ## 🚀 What's New in ${{ github.ref_name }}
           
-          - **Enterprise CLI Tools**: A massive upgrade to our command-line interface! You can now control advanced projector features directly from scripts or your terminal without opening the GUI. Includes new subcommands: `mute`, `freeze`, `color-mode`, `aspect`, `luminance`, `brightness`, `contrast`, `keystone`, `raw`, `info`, `macro`, and `export`.
-          - **Diagnostics Dump (`info`)**: Retrieve a comprehensive dump of device telemetry, including filter hours, exact signal status, serial numbers, and real-time input resolution via `linux-iprojection info <ip>`.
-          - **MacroStore Engine Stability**: Fixed a critical bug in the Macro subsystem that caused crashes during application launch. Macros now load correctly and reliably execution across the fleet.
-          - **Silent & Clean Terminal Output**: For GUI users running from a terminal, we have implemented custom GLib interceptors to silence noisy `libadwaita` and GTK theme warnings on non-GNOME desktop environments.
-          - **D-Bus Service**: We laid the groundwork for robust IPC with our new `dev.linux_iprojection.Manager` D-Bus Session API, paving the way for desktop widgets and GNOME extensions.
-          - **Security & Integrity**: Integrated core structural integrity layout checks (watermark anchoring) to ensure the application renders exactly as intended without structural tampering.
-          - **Production-Ready Tests**: Expanding our internal `pytest` suite to comprehensively cover new enterprise protocol commands. Tests are 100% passing.
+          *(Auto-generated from merged pull requests and commits)*
           
           ---
           
