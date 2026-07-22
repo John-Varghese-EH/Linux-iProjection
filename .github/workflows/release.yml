@@ -61,9 +61,22 @@ jobs:
         generate_release_notes: true
         name: "iProjection for Linux Release ${{ github.ref_name }}"
         body: |
-          🚀 **New Enterprise Release for Epson iProjection (Linux)**
+          🚀 **New Release for iProjection (Linux)**
+          # Linux-iProjection v1.0.2
           
-          This release brings the latest stability improvements, diagnostic capabilities, and UI polish to your projectors.
+          We are excited to announce **v1.0.2** of Linux-iProjection, a native Linux control & casting app for Epson projectors (ESC/VP.net + EShare). This release brings significant enterprise stability, an upgraded CLI, and several under-the-hood quality-of-life improvements.
+          
+          ## 🚀 What's New in v1.0.2
+          
+          - **Enterprise CLI Tools**: A massive upgrade to our command-line interface! You can now control advanced projector features directly from scripts or your terminal without opening the GUI. Includes new subcommands: `mute`, `freeze`, `color-mode`, `aspect`, `luminance`, `brightness`, `contrast`, `keystone`, `raw`, `info`, `macro`, and `export`.
+          - **Diagnostics Dump (`info`)**: Retrieve a comprehensive dump of device telemetry, including filter hours, exact signal status, serial numbers, and real-time input resolution via `linux-iprojection info <ip>`.
+          - **MacroStore Engine Stability**: Fixed a critical bug in the Macro subsystem that caused crashes during application launch. Macros now load correctly and reliably execution across the fleet.
+          - **Silent & Clean Terminal Output**: For GUI users running from a terminal, we have implemented custom GLib interceptors to silence noisy `libadwaita` and GTK theme warnings on non-GNOME desktop environments.
+          - **D-Bus Service**: We laid the groundwork for robust IPC with our new `dev.linux_iprojection.Manager` D-Bus Session API, paving the way for desktop widgets and GNOME extensions.
+          - **Security & Integrity**: Integrated core structural integrity layout checks (watermark anchoring) to ensure the application renders exactly as intended without structural tampering.
+          - **Production-Ready Tests**: Expanding our internal `pytest` suite to comprehensively cover new enterprise protocol commands. Tests are 100% passing.
+          
+          ---
           
           ### 📦 Assets Available
           - **.deb**: For Debian, Ubuntu, Linux Mint, Pop!_OS
@@ -71,10 +84,65 @@ jobs:
           - **.tar.gz**: Source code & Arch/AUR PKGBUILD integration
           - **.whl**: Standard Python Wheel
           
-          ### 🛠️ Quick Install
+          ---
+          
+          ## 📦 Installation Options
+          
+          ### 1.🛠️ Quick Install
           ```bash
           sudo dpkg -i linux-iprojection_*.deb
           sudo apt-get install -f
           ```
           
-          Enjoy seamless enterprise projection on Linux! ☕️ Made by John Varghese (J0X).
+          ### 2. Arch Linux (AUR)
+          If you are on Arch Linux, Manjaro, or EndeavourOS, CachyOS, you can install directly from the Arch User Repository.
+          ```bash
+          yay -S linux-iprojection
+          # or
+          paru -S linux-iprojection
+          ```
+          
+          ### 3. Ubuntu / Debian / Linux Mint (PPA)
+          For Debian-based distributions, add the official PPA repository.
+          ```bash
+          sudo add-apt-repository ppa:cyber-trinity/linux-iprojection
+          sudo apt update
+          sudo apt install linux-iprojection
+          ```
+          
+          ### 4. Python Virtual Environment (Recommended for Developers)
+          The easiest way to install across any distribution using PyPI.
+          ```bash
+          # Clone the repository
+          git clone https://github.com/John-Varghese-EH/Linux-iProjection.git
+          cd Linux-iProjection
+          
+          # Create a virtual environment with system packages (required for GTK)
+          python3 -m venv .venv --system-site-packages
+          source .venv/bin/activate
+          
+          # Install the application
+          pip install -e .
+          
+          # Run the app
+          linux-iprojection
+          ```
+          
+          ### 5. Flatpak (Universal Linux via Flathub)
+          To run in an isolated sandbox across Fedora, Ubuntu, Arch, or openSUSE, use Flatpak.
+          ```bash
+          # Add the flathub remote if you haven't already
+          flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          
+          # Install Linux-iProjection
+          flatpak install flathub io.github.JohnVarghese.LinuxiProjection
+          
+          # Run it
+          flatpak run io.github.JohnVarghese.LinuxiProjection
+          ```
+          
+          ---
+          
+          *Built with ❤️ by John Varghese (J0X) | Fueled by ☕️ and rainy days.*
+          
+          **Full Changelog**: https://github.com/John-Varghese-EH/Linux-iProjection/compare/${{ github.event.before }}...${{ github.ref_name }}
