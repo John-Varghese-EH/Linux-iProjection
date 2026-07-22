@@ -34,7 +34,7 @@ paru -S linux-iprojection
 ### Ubuntu / Debian (PPA)
 For automated updates on Debian-based systems, add the [official PPA](https://launchpad.net/iprojection):
 ```bash
-sudo add-apt-repository ppa:john-varghese/linux-iprojection
+sudo add-apt-repository ppa:cyber-trinity/linux-iprojection
 sudo apt update
 sudo apt install linux-iprojection
 ```
