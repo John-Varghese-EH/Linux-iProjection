@@ -4,21 +4,20 @@ linux-iprojection command line interface.
 
 import argparse
 import asyncio
-import sys
-import json
 import dataclasses
+import json
+import sys
 
 from .client import ProjectorClient, wake_on_lan
+from .config import MacroStore
 from .discovery import discover_all
 from .protocol import (
-    Source,
-    ColorMode,
     AspectRatio,
-    LuminanceMode,
-    ColorTemp,
+    ColorMode,
     KeystoneAxis,
+    LuminanceMode,
+    Source,
 )
-from .config import MacroStore
 
 
 async def _discover(_args):

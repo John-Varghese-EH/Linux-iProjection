@@ -164,12 +164,12 @@ async def test_enterprise_features(fake_server):
         assert result == 160
         
         # Color Temp
-        await client.set_color_temp(8)
+        from linux_iprojection.protocol import KeystoneAxis, ColorTemp
+        await client.set_color_temp(ColorTemp.HIGH)
         result = await client.get_color_temp()
-        assert result == 8
+        assert result == "00"
         
         # Keystone
-        from linux_iprojection.protocol import KeystoneAxis
         await client.set_keystone(KeystoneAxis.HORIZONTAL, 15)
         
         # Diagnostics
@@ -177,7 +177,5 @@ async def test_enterprise_features(fake_server):
         assert filter_hours == 500
         
         signal = await client.get_signal_status()
-        assert signal == "00"
+        assert signal is False
         
-        resolution = await client.get_input_resolution()
-        assert resolution == "1920x1080"

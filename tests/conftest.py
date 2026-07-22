@@ -122,9 +122,9 @@ class FakeEscVpServer:
             self.sharpness = int(cmd.split(" ", 1)[1])
             return ""
         elif cmd == "CTEMP?":
-            return f"CTEMP={getattr(self, 'ctemp', 7)}"
+            return f"CTEMP={getattr(self, 'ctemp', '00')}"
         elif cmd.startswith("CTEMP "):
-            self.ctemp = int(cmd.split(" ", 1)[1])
+            self.ctemp = cmd.split(" ", 1)[1]
             return ""
         elif cmd == "HKEYSTONE?":
             return f"HKEYSTONE={getattr(self, 'hkeystone', 0)}"

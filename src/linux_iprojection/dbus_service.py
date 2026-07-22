@@ -12,13 +12,14 @@ import asyncio
 import logging
 
 import gi
+
 gi.require_version('Gio', '2.0')
 gi.require_version('GLib', '2.0')
-from gi.repository import Gio, GLib
+from gi.repository import Gio, GLib  # noqa: E402
 
-from .client import ProjectorClient
-from .discovery import discover_all
-from .config import MacroStore, MacroStep
+from .client import ProjectorClient  # noqa: E402
+from .config import MacroStore  # noqa: E402
+from .discovery import discover_all  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
