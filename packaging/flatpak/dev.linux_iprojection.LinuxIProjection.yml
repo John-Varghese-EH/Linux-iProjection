@@ -1,7 +1,7 @@
 # linux-iprojection - Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
 app-id: dev.linux_iprojection.LinuxIProjection
 runtime: org.gnome.Platform
-runtime-version: '46'
+runtime-version: '47'
 sdk: org.gnome.Sdk
 command: linux-iprojection
 finish-args:
@@ -20,14 +20,14 @@ modules:
       build-args:
         - --share=network
     build-commands:
-      - pip3 install --prefix=/app zeroconf
+      - pip3 install --prefix=/app --break-system-packages zeroconf
   - name: linux-iprojection
     buildsystem: simple
     build-options:
       build-args:
         - --share=network
     build-commands:
-      - pip3 install --no-build-isolation --prefix=/app .
+      - pip3 install --no-build-isolation --prefix=/app --break-system-packages .
       - install -Dm644 data/dev.linux_iprojection.LinuxIProjection.desktop /app/share/applications/dev.linux_iprojection.LinuxIProjection.desktop
       - install -Dm644 data/dev.linux_iprojection.LinuxIProjection.metainfo.xml /app/share/metainfo/dev.linux_iprojection.LinuxIProjection.metainfo.xml
       - install -Dm644 data/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg /app/share/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg
