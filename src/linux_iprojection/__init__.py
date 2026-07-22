@@ -1,5 +1,5 @@
 """
-linux-iprojection - Epson projector control application
+linux-iprojection: Epson projector control application.
 Part of the iProjection (Unofficial) project by John Varghese (J0X)
 https://github.com/John-Varghese-EH
 """

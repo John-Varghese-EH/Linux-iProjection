@@ -1,5 +1,5 @@
 """
-linux-iprojection - Discovery of Epson projectors / EShare receivers on the local network.
+linux-iprojection: Discovery of Epson projectors / EShare receivers on the local network.
 Part of the iProjection (Unofficial) project by John Varghese (J0X)
 https://github.com/John-Varghese-EH
 

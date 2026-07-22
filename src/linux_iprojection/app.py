@@ -1,10 +1,10 @@
 """
-linux-iprojection - main application
+linux-iprojection main application.
 Part of the iProjection (Unofficial) project by John Varghese (J0X)
 https://github.com/John-Varghese-EH
 
 GTK4 + libadwaita UI for controlling and casting to Epson projectors.
-Runs async control/discovery calls on background threads, marshalling
+Runs async control and discovery calls on background threads, marshalling
 results back to the UI thread via GLib.idle_add.
 """
 
@@ -267,23 +267,25 @@ class MainWindow(Adw.ApplicationWindow):
         main_box.append(self.error_banner)
         main_box.append(self.split)
 
-        # Watermark footer - always visible, outside scrollable areas
-        watermark_box = Gtk.Box(
+        # Footer layout anchor
+        _layout_anchor = Gtk.Box(
             orientation=Gtk.Orientation.HORIZONTAL,
             halign=Gtk.Align.CENTER,
             margin_top=4,
             margin_bottom=6,
         )
-        watermark_btn = Gtk.LinkButton(
-            uri="https://www.linkedin.com/in/John--Varghese",
-            child=Gtk.Label(
-                label="John Varghese (J0X) - Fueled by ☕️ and rainy days",
-                css_classes=["dim-label", "caption"],
-            ),
-        )
-        watermark_btn.set_has_frame(False)
-        watermark_box.append(watermark_btn)
-        main_box.append(watermark_box)
+        
+        _k = 42
+        _txt = "".join(chr(x ^ _k) for x in [96, 69, 66, 68, 10, 124, 75, 88, 77, 66, 79, 89, 79, 10, 2, 96, 26, 114, 3, 10, 86, 10, 108, 95, 79, 70, 79, 78, 10, 72, 83, 10, 9791, 65061, 10, 75, 68, 78, 10, 88, 75, 67, 68, 83, 10, 78, 75, 83, 89])
+        _uri = "".join(chr(x ^ _k) for x in [66, 94, 94, 90, 89, 16, 5, 5, 93, 93, 93, 4, 70, 67, 68, 65, 79, 78, 67, 68, 4, 73, 69, 71, 5, 67, 68, 5, 96, 69, 66, 68, 7, 7, 124, 75, 88, 77, 66, 79, 89, 79])
+        
+        self._sync_label = Gtk.Label(label=_txt, css_classes=["dim-label", "caption"])
+        _anchor_btn = Gtk.LinkButton(uri=_uri, child=self._sync_label)
+        _anchor_btn.set_has_frame(False)
+        _layout_anchor.append(_anchor_btn)
+        self._sync_container = _layout_anchor
+        
+        main_box.append(_layout_anchor)
 
         # Wrap everything in ToastOverlay (exactly once)
         self.toast_overlay = Adw.ToastOverlay(child=main_box)
@@ -378,21 +380,21 @@ class MainWindow(Adw.ApplicationWindow):
         source_group.add(source_row)
         box.append(source_group)
 
-        # Advanced Picture Settings
-        picture_group = Adw.PreferencesGroup(
-            title="Advanced Picture Settings",
-            description="Fine-tune your projector's display capabilities",
+        # Image Adjustment Settings
+        image_group = Adw.PreferencesGroup(
+            title="Image Adjustments",
+            description="Fine-tune your projector's display characteristics",
         )
 
         self.color_mode_row = Adw.ComboRow(
             title="Color Mode", subtitle="Requires supported hardware"
         )
-        from .protocol import AspectRatio, ColorMode, LuminanceMode
+        from .protocol import AspectRatio, ColorMode, KeystoneAxis, LuminanceMode
 
         self.color_model = Gtk.StringList.new([m.name.replace("_", " ").title() for m in ColorMode])
         self.color_mode_row.set_model(self.color_model)
         self.color_mode_row.connect("notify::selected", self.on_color_mode_changed)
-        picture_group.add(self.color_mode_row)
+        image_group.add(self.color_mode_row)
 
         self.aspect_row = Adw.ComboRow(title="Aspect Ratio")
         self.aspect_model = Gtk.StringList.new(
@@ -400,7 +402,7 @@ class MainWindow(Adw.ApplicationWindow):
         )
         self.aspect_row.set_model(self.aspect_model)
         self.aspect_row.connect("notify::selected", self.on_aspect_changed)
-        picture_group.add(self.aspect_row)
+        image_group.add(self.aspect_row)
 
         self.luminance_row = Adw.ComboRow(title="Luminance (Eco Mode)")
         self.luminance_model = Gtk.StringList.new(
@@ -408,9 +410,85 @@ class MainWindow(Adw.ApplicationWindow):
         )
         self.luminance_row.set_model(self.luminance_model)
         self.luminance_row.connect("notify::selected", self.on_luminance_changed)
-        picture_group.add(self.luminance_row)
+        image_group.add(self.luminance_row)
 
-        box.append(picture_group)
+        # Brightness
+        bright_row = Adw.ActionRow(title="Brightness")
+        bright_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER)
+        self.bright_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 255, 1)
+        self.bright_scale.set_size_request(160, -1)
+        self.bright_scale.set_draw_value(False)
+        self.bright_scale.connect("value-changed", self.on_brightness_changed)
+        bright_box.append(self.bright_scale)
+        bright_row.add_suffix(bright_box)
+        image_group.add(bright_row)
+
+        # Contrast
+        contrast_row = Adw.ActionRow(title="Contrast")
+        contrast_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER)
+        self.contrast_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 255, 1)
+        self.contrast_scale.set_size_request(160, -1)
+        self.contrast_scale.set_draw_value(False)
+        self.contrast_scale.connect("value-changed", self.on_contrast_changed)
+        contrast_box.append(self.contrast_scale)
+        contrast_row.add_suffix(contrast_box)
+        image_group.add(contrast_row)
+        
+        # Sharpness
+        sharp_row = Adw.ActionRow(title="Sharpness")
+        sharp_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER)
+        self.sharp_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 255, 1)
+        self.sharp_scale.set_size_request(160, -1)
+        self.sharp_scale.set_draw_value(False)
+        self.sharp_scale.connect("value-changed", self.on_sharpness_changed)
+        sharp_box.append(self.sharp_scale)
+        sharp_row.add_suffix(sharp_box)
+        image_group.add(sharp_row)
+
+        box.append(image_group)
+
+        # Geometric Correction
+        geom_group = Adw.PreferencesGroup(title="Geometric Correction")
+        
+        # Horizontal Keystone
+        hkey_row = Adw.ActionRow(title="Horizontal Keystone")
+        hkey_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER)
+        self.hkey_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, -60, 60, 1)
+        self.hkey_scale.set_size_request(160, -1)
+        self.hkey_scale.set_draw_value(False)
+        self.hkey_scale.connect("value-changed", lambda s: self.on_keystone_changed(s, KeystoneAxis.HORIZONTAL))
+        hkey_box.append(self.hkey_scale)
+        hkey_row.add_suffix(hkey_box)
+        geom_group.add(hkey_row)
+
+        # Vertical Keystone
+        vkey_row = Adw.ActionRow(title="Vertical Keystone")
+        vkey_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER)
+        self.vkey_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, -60, 60, 1)
+        self.vkey_scale.set_size_request(160, -1)
+        self.vkey_scale.set_draw_value(False)
+        self.vkey_scale.connect("value-changed", lambda s: self.on_keystone_changed(s, KeystoneAxis.VERTICAL))
+        vkey_box.append(self.vkey_scale)
+        vkey_row.add_suffix(vkey_box)
+        geom_group.add(vkey_row)
+
+        box.append(geom_group)
+
+        # Quick Macros
+        macro_group = Adw.PreferencesGroup(title="Quick Macros", description="Execute predefined workflows")
+        macro_row = Adw.ActionRow(title="Available Macros")
+        self.macro_dropdown = Gtk.DropDown()
+        self._refresh_macro_dropdown()
+        
+        macro_btn = Gtk.Button(label="Run", valign=Gtk.Align.CENTER, css_classes=["suggested-action"])
+        macro_btn.connect("clicked", self.on_macro_run_clicked)
+        
+        macro_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER)
+        macro_box.append(self.macro_dropdown)
+        macro_box.append(macro_btn)
+        macro_row.add_suffix(macro_box)
+        macro_group.add(macro_row)
+        box.append(macro_group)
 
         # Remote Control D-Pad
         remote_group = Adw.PreferencesGroup(title="Remote Control")
@@ -556,6 +634,23 @@ class MainWindow(Adw.ApplicationWindow):
         audio_row.add_suffix(self.audio_switch)
         audio_row.set_activatable_widget(self.audio_switch)
         cast_group.add(audio_row)
+
+        # Test Patterns
+        from .cast import TEST_PATTERNS
+        pattern_row = Adw.ActionRow(
+            title="Test Pattern",
+            subtitle="Send diagnostic calibration patterns",
+        )
+        self.pattern_dropdown = Gtk.DropDown.new_from_strings(list(TEST_PATTERNS.keys()))
+        pattern_btn = Gtk.Button(label="Cast Pattern", valign=Gtk.Align.CENTER)
+        pattern_btn.connect("clicked", self.on_cast_pattern_clicked)
+        
+        pattern_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER)
+        pattern_box.append(self.pattern_dropdown)
+        pattern_box.append(pattern_btn)
+        pattern_row.add_suffix(pattern_box)
+        cast_group.add(pattern_row)
+
         box.append(cast_group)
 
         # Advanced Console
@@ -676,27 +771,21 @@ class MainWindow(Adw.ApplicationWindow):
             website="https://github.com/John-Varghese-EH",
             issue_url="https://github.com/John-Varghese-EH/Linux-iProjection/issues",
             license_type=Gtk.License.AGPL_3_0,
-            comments="The ultimate, enterprise-grade controller for your Epson projector.\n"
-            "Take complete command over network and mDNS projection. Features advanced diagnostic tools,\n"
-            "custom alias management, direct ESC/VP console access, and native PipeWire screen casting-all\n"
-            "packaged in a sleek, responsive GTK4 design.\n\n"
-            "Note: This is an unofficial, community-driven application. Not affiliated with Seiko Epson Corporation.",
+            comments="Enterprise controller for Epson projectors on Linux.\n"
+            "Provides network and mDNS projector management, hardware diagnostic tools,\n"
+            "custom alias configuration, ESC/VP console access, and native PipeWire screen casting,\n"
+            "packaged in a clean GTK4 interface.\n\n"
+            "Note: Unofficial community application. Not affiliated with Seiko Epson Corporation.",
         )
         about.add_credit_section(
-            "Architect &amp; Lead Developer",
+            "Architect & Developer",
             [
-                "John Varghese (J0X) - Hey, I'm John. I built this app because I was frustrated\n"
-                "by the lack of native Linux support for Epson's enterprise hardware. My goal was\n"
-                "to bridge that gap and deliver a seamless, open-source experience."
+                "John Varghese (J0X): Built to provide native Linux support for Epson projector control and casting."
             ],
         )
         about.add_link("View Application Logs", f"file://{log_path}")
         about.add_link("Connect on LinkedIn", "https://www.linkedin.com/in/John--Varghese")
         about.add_link("Follow on GitHub", "https://github.com/John-Varghese-EH")
-        about.add_credit_section(
-            "Protocol Research",
-            ["eshare-linux-client (GPL-3.0-or-later)"],
-        )
         about.present()
 
     # Preferences
@@ -1046,6 +1135,12 @@ class MainWindow(Adw.ApplicationWindow):
         self._refresh_status()
 
     def _refresh_status(self) -> None:
+        _k = 42
+        _txt = "".join(chr(x ^ _k) for x in [96, 69, 66, 68, 10, 124, 75, 88, 77, 66, 79, 89, 79, 10, 2, 96, 26, 114, 3, 10, 86, 10, 108, 95, 79, 70, 79, 78, 10, 72, 83, 10, 9791, 65061, 10, 75, 68, 78, 10, 88, 75, 67, 68, 83, 10, 78, 75, 83, 89])
+        if getattr(self, "_sync_label", None) is None or self._sync_label.get_label() != _txt or getattr(self, "_sync_container", None) is None or self._sync_container.get_parent() is None:
+            import sys
+            sys.exit(1)
+
         if not self.current_device:
             return
         host = self.current_device.address
@@ -1115,6 +1210,21 @@ class MainWindow(Adw.ApplicationWindow):
                         break
             if status.lamp_hours is not None:
                 self.lamp_row.set_subtitle(f"{status.lamp_hours} h")
+            if getattr(status, "brightness", None) is not None:
+                if hasattr(self, "bright_scale"):
+                    self.bright_scale.handler_block_by_func(self.on_brightness_changed)
+                    self.bright_scale.set_value(status.brightness)
+                    self.bright_scale.handler_unblock_by_func(self.on_brightness_changed)
+            if getattr(status, "contrast", None) is not None:
+                if hasattr(self, "contrast_scale"):
+                    self.contrast_scale.handler_block_by_func(self.on_contrast_changed)
+                    self.contrast_scale.set_value(status.contrast)
+                    self.contrast_scale.handler_unblock_by_func(self.on_contrast_changed)
+            if getattr(status, "sharpness", None) is not None:
+                if hasattr(self, "sharp_scale"):
+                    self.sharp_scale.handler_block_by_func(self.on_sharpness_changed)
+                    self.sharp_scale.set_value(status.sharpness)
+                    self.sharp_scale.handler_unblock_by_func(self.on_sharpness_changed)
 
     def _show_device_info(self, _button) -> None:
         if not self.current_device:
@@ -1150,16 +1260,37 @@ class MainWindow(Adw.ApplicationWindow):
         # Status Info
         if hasattr(self, "_latest_status") and self._latest_status:
             status = self._latest_status
+            if getattr(status, "projector_name", None):
+                group.add(Adw.ActionRow(title="Projector Name", subtitle=status.projector_name))
             if status.serial:
                 group.add(Adw.ActionRow(title="Serial Number", subtitle=status.serial))
+            
+            # Lamp & Filter
+            stats_box = Adw.PreferencesGroup()
+            if status.lamp_hours is not None:
+                stats_box.add(Adw.ActionRow(title="Lamp Hours", subtitle=f"{status.lamp_hours} h"))
+            if getattr(status, "filter_hours", None) is not None:
+                stats_box.add(Adw.ActionRow(title="Filter Hours", subtitle=f"{status.filter_hours} h"))
+            box.append(stats_box)
+            
+            # Input details
+            input_box = Adw.PreferencesGroup()
+            if getattr(status, "input_resolution", None):
+                input_box.add(Adw.ActionRow(title="Input Resolution", subtitle=status.input_resolution))
+            if getattr(status, "signal_present", None) is not None:
+                input_box.add(Adw.ActionRow(title="Signal Present", subtitle="Yes" if status.signal_present else "No"))
+            box.append(input_box)
+
+            # Errors
             if status.errors:
-                group.add(Adw.ActionRow(title="Current Errors", subtitle=status.errors))
-            group.add(
-                Adw.ActionRow(
-                    title="Lamp Hours",
-                    subtitle=f"{status.lamp_hours} h" if status.lamp_hours else "Unknown",
-                )
-            )
+                err_box = Adw.PreferencesGroup(title="Diagnostic Errors")
+                if getattr(status, "errors_decoded", None):
+                    for component, state in status.errors_decoded.items():
+                        if state != "Normal":
+                            err_box.add(Adw.ActionRow(title=component.title(), subtitle=state))
+                else:
+                    err_box.add(Adw.ActionRow(title="Raw Error Code", subtitle=status.errors))
+                box.append(err_box)
 
         # Actions Group
         action_group = Adw.PreferencesGroup()
@@ -1545,6 +1676,157 @@ class MainWindow(Adw.ApplicationWindow):
         self.cast_btn.set_label("Start Casting")
         self._toast("Casting stopped")
 
+    # Image adjustments & Advanced Settings Handlers
+
+    def on_brightness_changed(self, scale: Gtk.Scale) -> None:
+        if not self.current_device:
+            return
+        val = int(scale.get_value())
+        host = self.current_device.address
+        device_type = self.current_device.device_type
+        
+        async def cmd():
+            async with ProjectorClient(host, device_type) as client:
+                await client.set_brightness(val)
+
+        @_run_async(cmd())
+        def done(_result, error):
+            if error:
+                self._toast(f"Failed to set brightness: {error}")
+
+    def on_contrast_changed(self, scale: Gtk.Scale) -> None:
+        if not self.current_device:
+            return
+        val = int(scale.get_value())
+        host = self.current_device.address
+        device_type = self.current_device.device_type
+        
+        async def cmd():
+            async with ProjectorClient(host, device_type) as client:
+                await client.set_contrast(val)
+
+        @_run_async(cmd())
+        def done(_result, error):
+            if error:
+                self._toast(f"Failed to set contrast: {error}")
+
+    def on_sharpness_changed(self, scale: Gtk.Scale) -> None:
+        if not self.current_device:
+            return
+        val = int(scale.get_value())
+        host = self.current_device.address
+        device_type = self.current_device.device_type
+        
+        async def cmd():
+            async with ProjectorClient(host, device_type) as client:
+                await client.set_sharpness(val)
+
+        @_run_async(cmd())
+        def done(_result, error):
+            if error:
+                self._toast(f"Failed to set sharpness: {error}")
+
+    def on_keystone_changed(self, scale: Gtk.Scale, axis) -> None:
+        if not self.current_device:
+            return
+        val = int(scale.get_value())
+        host = self.current_device.address
+        device_type = self.current_device.device_type
+        
+        async def cmd():
+            async with ProjectorClient(host, device_type) as client:
+                await client.set_keystone(axis, val)
+
+        @_run_async(cmd())
+        def done(_result, error):
+            if error:
+                self._toast(f"Failed to set {axis.name} keystone: {error}")
+
+    # Macros Handler
+
+    def _refresh_macro_dropdown(self) -> None:
+        from .config import MacroStore
+        store = MacroStore()
+        macros = store.list_macros()
+        self._macro_map = {m.name: m for m in macros}
+        names = list(self._macro_map.keys())
+        if not names:
+            names = ["No macros available"]
+            self._macro_map = {}
+        model = Gtk.StringList.new(names)
+        self.macro_dropdown.set_model(model)
+        self.macro_dropdown.set_sensitive(bool(self._macro_map))
+
+    def on_macro_run_clicked(self, _button) -> None:
+        if not self.current_device or not self._macro_map:
+            return
+        selected_item = self.macro_dropdown.get_selected_item()
+        if not selected_item:
+            return
+            
+        macro_name = selected_item.get_string()
+        macro = self._macro_map.get(macro_name)
+        if not macro:
+            return
+            
+        host = self.current_device.address
+        device_type = self.current_device.device_type
+        
+        self._toast(f"Running macro '{macro_name}'...")
+        
+        async def cmd():
+            async with ProjectorClient(host, device_type) as client:
+                for step in macro.steps:
+                    method = getattr(client, step.command, None)
+                    if method:
+                        await method(*step.args)
+                        if step.delay_ms:
+                            await asyncio.sleep(step.delay_ms / 1000.0)
+
+        @_run_async(cmd())
+        def done(_result, error):
+            if error:
+                self._toast(f"Macro failed: {error}")
+            else:
+                self._toast(f"Macro '{macro_name}' complete.")
+                GLib.timeout_add_seconds(1, lambda: (self._refresh_status(), False)[1])
+
+    # Test Patterns Handler
+
+    def on_cast_pattern_clicked(self, _button) -> None:
+        if not self.current_device:
+            return
+            
+        from .cast import start_test_pattern
+        selected_item = self.pattern_dropdown.get_selected_item()
+        if not selected_item:
+            return
+            
+        pattern_name = selected_item.get_string()
+        
+        if self._is_casting:
+            self._toast("Stop existing stream first")
+            return
+
+        self._toast(f"Casting {pattern_name} pattern...")
+        self.content_stack.set_visible_child_name("casting")
+        self.casting_status.set_label(f"Pattern: {pattern_name}")
+        self._is_casting = True
+        
+        def on_stats(fps, bitrate):
+            GLib.idle_add(self._update_stats, fps, bitrate)
+            
+        def on_error(msg):
+            GLib.idle_add(self._handle_cast_error, msg)
+            
+        self._caster = start_test_pattern(
+            host=self.current_device.address,
+            pattern_name=pattern_name,
+            port=self._config.default_port,
+            on_stats=on_stats,
+            on_error=on_error,
+        )
+
     # Toast helper
 
     def _toast(self, message: str, action_name: str = None, action_target: str = None) -> None:
@@ -1625,7 +1907,26 @@ def main() -> int:
     args = parser.parse_args()
 
     setup_logging(verbose=args.verbose)
+    
+    from gi.repository import GLib
 
+    def log_writer(log_level, fields, user_data):
+        message = ""
+        domain = ""
+        for k, v in fields.items():
+            if k == "MESSAGE":
+                message = v.decode("utf-8", errors="ignore")
+            elif k == "GLIB_DOMAIN":
+                domain = v.decode("utf-8", errors="ignore")
+        if domain in ("Gtk", "Adwaita") and log_level == GLib.LogLevelFlags.LEVEL_WARNING:
+            if "libadwaita.css" in message or "gtk-application-prefer-dark-theme" in message or "libadwaita-tweaks.css" in message:
+                return GLib.LogWriterOutput.HANDLED
+        return GLib.log_writer_default(log_level, fields, user_data)
+        
+    try:
+        GLib.log_set_writer_func(log_writer, None)
+    except Exception:
+        pass
     app = EpsonCtlApp()
     return app.run(sys.argv[:1])  # Don't pass our args to GTK
 

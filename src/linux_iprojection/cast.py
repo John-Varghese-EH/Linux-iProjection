@@ -72,6 +72,20 @@ class CastTarget:
 
 # Sink abstraction
 
+TEST_PATTERNS = {
+    "smpte": 0,        # SMPTE color bars
+    "snow": 1,         # Random noise
+    "black": 2,        # Solid black
+    "white": 3,        # Solid white
+    "red": 4,          # Solid red
+    "green": 5,        # Solid green
+    "blue": 6,         # Solid blue
+    "checkers": 7,     # Checkerboard (1px)
+    "circular": 17,    # Circular pattern
+    "gamut": 19,       # Gamut check
+    "grid": 23,        # Grid overlay
+}
+
 
 class CastSink(ABC):
     """Pluggable GStreamer sink chain for the encoded stream."""
@@ -323,6 +337,12 @@ class ScreenCaster:
         self._is_casting = False
         self._stats_timeout_id: int | None = None
         self._bus_watch_id = None
+        self._active_pattern: str | None = None
+
+    @property
+    def active_pattern(self) -> str | None:
+        """Return the name of the active test pattern, or None if screen casting."""
+        return self._active_pattern
 
     @property
     def is_casting(self) -> bool:
@@ -377,6 +397,7 @@ class ScreenCaster:
 
         self._target = target
         self._is_casting = True
+        self._active_pattern = None
 
         # Stats timer (1s)
         self._stats_timeout_id = GLib.timeout_add_seconds(1, self._emit_stats)
@@ -388,6 +409,60 @@ class ScreenCaster:
             target.host,
             target.audio_port,
         )
+        return True
+
+    async def start_test_pattern(self, target: CastTarget, pattern: str = "smpte") -> bool:
+        """Start casting a GStreamer test pattern instead of screen capture.
+
+        Useful for focus calibration, geometry alignment, and color checking.
+        No XDG portal dialog is shown.
+        """
+        if self._is_casting:
+            log.warning("Already casting, stop first")
+            return False
+
+        _ensure_gst()
+
+        pattern_id = TEST_PATTERNS.get(pattern, 0)
+        encoder = _probe_encoder(self.encoder_preset, self.stream_quality)
+        sink = self.sink
+        video_sink = sink.build_sink_bin(target)
+
+        pipeline_str = (
+            f"videotestsrc pattern={pattern_id} is-live=true ! "
+            "video/x-raw,width=1920,height=1080,framerate=30/1 ! "
+            "videoconvert ! videoscale ! "
+            "video/x-raw,format=I420 ! "
+            f"{encoder} ! h264parse ! "
+            f"{video_sink}"
+        )
+        log.info("Test pattern pipeline: %s", pipeline_str)
+
+        try:
+            self._pipeline = Gst.parse_launch(pipeline_str)
+        except Exception as e:
+            log.error("Failed to parse test pattern pipeline: %s", e)
+            if self.on_error:
+                self.on_error(f"Pipeline error: {e}")
+            return False
+
+        bus = self._pipeline.get_bus()
+        bus.add_signal_watch()
+        self._bus_watch_id = bus.connect("message", self._on_bus_message)
+
+        ret = self._pipeline.set_state(Gst.State.PLAYING)
+        if ret == Gst.StateChangeReturn.FAILURE:
+            log.error("Failed to start test pattern")
+            if self.on_error:
+                self.on_error("GStreamer failed to start test pattern")
+            return False
+
+        self._target = target
+        self._is_casting = True
+        self._active_pattern = pattern
+        self._stats_timeout_id = GLib.timeout_add_seconds(1, self._emit_stats)
+
+        log.info("Test pattern '%s' casting to %s:%d", pattern, target.host, target.port)
         return True
 
     def stop(self) -> None:
@@ -409,6 +484,7 @@ class ScreenCaster:
             self._pipeline = None
 
         self._target = None
+        self._active_pattern = None
         log.info("Casting stopped")
 
     def _build_pipeline(
@@ -480,11 +556,28 @@ class ScreenCaster:
 
         stats = StreamStats(audio_active=self.audio_enabled)
 
-        # Try to get position info for basic stats
+        # Try to get byte-level position for bitrate estimation
         if self._pipeline:
+            # Query current position
             ok, pos = self._pipeline.query_position(Gst.Format.TIME)
-            if ok:
+            if ok and pos > 0:
                 stats.latency_ms = pos / Gst.MSECOND
+
+            # Try querying the pipeline for dropped buffers via QoS
+            iterator = self._pipeline.iterate_sinks()
+            while True:
+                result, element = iterator.next()
+                if result != Gst.IteratorResult.OK:
+                    break
+                if hasattr(element, "get_property"):
+                    try:
+                        # udpsink exposes bytes-served
+                        if element.get_factory() and "udpsink" in element.get_factory().get_name():
+                            bytes_served = element.get_property("bytes-served")
+                            if bytes_served > 0:
+                                stats.bitrate_kbps = (bytes_served * 8) / 1000.0
+                    except Exception:
+                        pass
 
         if self.on_stats:
             self.on_stats(stats)

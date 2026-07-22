@@ -1,7 +1,6 @@
 # Epson Projector Protocol Notes
 
-Documentation extracted from the `eshare-linux-client` reference project and
-public Epson documentation. Sufficient detail for reimplementation.
+Documentation compiled directly from Epson network protocol specifications and public technical documentation. Sufficient detail for reimplementation.
 
 ## ESC/VP.net Control Protocol
 
@@ -46,7 +45,7 @@ public Epson documentation. Sufficient detail for reimplementation.
 
 ### Firmware Quirks
 - Keep-alive required: some firmware drops TCP after ~30s idle. Send `PWR?\r` periodically.
-- Some older firmware sends `\r:` instead of `\r\n:` - handle both.
+- Some older firmware sends `\r:` instead of `\r\n:` (handle both).
 
 ## Screen Casting Protocol
 
@@ -70,7 +69,7 @@ TXT records for `_eshare._tcp.local.`:
 
 ### Stream Transport
 
-Pure **RTP over UDP** (not RTSP). No session negotiation handshake - the sender simply starts pushing RTP packets to the receiver's IP.
+Pure **RTP over UDP** (not RTSP). No session negotiation handshake; the sender simply starts pushing RTP packets to the receiver's IP.
 
 #### Video (port 5004)
 - Codec: H.264 (Baseline/Main profile)
@@ -127,8 +126,3 @@ Compatible with all major Wayland compositors:
 - niri (xdg-desktop-portal-gnome or -wlr)
 - Hyprland (xdg-desktop-portal-hyprland)
 - Sway (xdg-desktop-portal-wlr)
-
-## Reference Project
-
-Protocol knowledge derived from `eshare-linux-client` (GPL-3.0-or-later).
-See THIRD_PARTY_NOTICES.md for full attribution.

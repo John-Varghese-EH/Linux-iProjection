@@ -1,5 +1,5 @@
 """
-linux-iprojection - ESC/VP.net client.
+linux-iprojection: ESC/VP.net client.
 Part of the iProjection (Unofficial) project by John Varghese (J0X)
 https://github.com/John-Varghese-EH
 
@@ -86,6 +86,26 @@ class LuminanceMode(str, Enum):
     ECO = "01"
 
 
+class ColorTemp(str, Enum):
+    HIGH = "00"
+    MEDIUM = "01"
+    LOW = "02"
+
+
+class KeystoneAxis(str, Enum):
+    HORIZONTAL = "H"
+    VERTICAL = "V"
+
+
+class ErrorCategory(str, Enum):
+    FAN = "fan"
+    LAMP = "lamp"
+    TEMP = "temp"
+    FILTER = "filter"
+    COVER = "cover"
+    OTHER = "other"
+
+
 @dataclass
 class ProjectorStatus:
     power: str | None = None
@@ -93,6 +113,14 @@ class ProjectorStatus:
     muted: bool | None = None
     lamp_hours: int | None = None
     error: str | None = None
+    brightness: int | None = None
+    contrast: int | None = None
+    sharpness: int | None = None
+    color_temp: str | None = None
+    filter_hours: int | None = None
+    projector_name: str | None = None
+    signal_present: bool | None = None
+    errors_decoded: dict | None = None
 
 
 class EscVpNetClient:
@@ -215,7 +243,7 @@ class EscVpNetClient:
             raise ProjectorError(f"Projector rejected '{command}': {text}")
         return text
 
-    # --- convenience wrappers -------------------------------------------------
+    # Convenience wrappers
 
     async def power_on(self) -> None:
         await self.send("PWR ON")
@@ -351,10 +379,169 @@ class EscVpNetClient:
             status.lamp_hours = await self.get_lamp_hours()
         except ProjectorError:
             pass
+        try:
+            status.brightness = await self.get_brightness()
+        except ProjectorError:
+            pass
+        try:
+            status.contrast = await self.get_contrast()
+        except ProjectorError:
+            pass
+        try:
+            status.sharpness = await self.get_sharpness()
+        except ProjectorError:
+            pass
+        try:
+            status.filter_hours = await self.get_filter_hours()
+        except ProjectorError:
+            pass
+        try:
+            status.signal_present = await self.get_signal_status()
+        except ProjectorError:
+            pass
+        try:
+            status.errors_decoded = await self.get_detailed_errors()
+        except ProjectorError:
+            pass
+        try:
+            status.projector_name = await self.get_projector_name()
+        except ProjectorError:
+            pass
+        try:
+            status.color_temp = await self.get_color_temp()
+        except ProjectorError:
+            pass
         return status
+
+    async def set_brightness(self, level: int) -> None:
+        """Set brightness (0-255)."""
+        await self.send(f"BRIGHT {level}")
+
+    async def get_brightness(self) -> int:
+        reply = await self.send("BRIGHT?")
+        if "=" in reply:
+            try:
+                return int(reply.split("=", 1)[1].strip())
+            except ValueError:
+                pass
+        return 0
+
+    async def set_contrast(self, level: int) -> None:
+        """Set contrast (0-255)."""
+        await self.send(f"CONTRAST {level}")
+
+    async def get_contrast(self) -> int:
+        reply = await self.send("CONTRAST?")
+        if "=" in reply:
+            try:
+                return int(reply.split("=", 1)[1].strip())
+            except ValueError:
+                pass
+        return 0
+
+    async def set_sharpness(self, level: int) -> None:
+        """Set sharpness (0-5)."""
+        await self.send(f"SHARPNESS {level}")
+
+    async def get_sharpness(self) -> int:
+        reply = await self.send("SHARPNESS?")
+        if "=" in reply:
+            try:
+                return int(reply.split("=", 1)[1].strip())
+            except ValueError:
+                pass
+        return 0
+
+    async def set_color_temp(self, temp: ColorTemp) -> None:
+        await self.send(f"CTEMP {temp.value}")
+
+    async def get_color_temp(self) -> str:
+        reply = await self.send("CTEMP?")
+        if reply.startswith("CTEMP="):
+            return reply.split("=", 1)[1]
+        return reply
+
+    async def set_keystone(self, axis: KeystoneAxis, value: int) -> None:
+        """Set keystone correction (-60 to +60)."""
+        cmd = f"{axis.value}KEYSTONE {value}"
+        await self.send(cmd)
+
+    async def get_keystone(self, axis: KeystoneAxis) -> int:
+        reply = await self.send(f"{axis.value}KEYSTONE?")
+        if "=" in reply:
+            try:
+                return int(reply.split("=", 1)[1].strip())
+            except ValueError:
+                pass
+        return 0
+
+    async def set_autosource(self, on: bool) -> None:
+        await self.send(f"AUTOSOURCE {'ON' if on else 'OFF'}")
+
+    async def get_filter_hours(self) -> int:
+        reply = await self.send("FILTER?")
+        if "=" in reply:
+            try:
+                return int(reply.split("=", 1)[1].split()[0])
+            except (ValueError, IndexError):
+                pass
+        return 0
+
+    async def get_projector_name(self) -> str:
+        reply = await self.send("PNAME?")
+        if reply.startswith("PNAME="):
+            return reply.split("=", 1)[1]
+        return reply
+
+    async def get_signal_status(self) -> bool:
+        """Check if the current input source has an active signal."""
+        reply = await self.send("SIGNAL?")
+        if "=" in reply:
+            val = reply.split("=", 1)[1].strip()
+            return val == "01"
+        return False
+
+    async def get_detailed_errors(self) -> dict:
+        """Decode ERR? response into per-category status dict.
+        
+        ERR? returns a multi-digit code where each position corresponds
+        to a subsystem: Fan, Lamp, Temperature, Cover, Filter, Other.
+        0 = OK, 1 = Warning, 2 = Error.
+        """
+        reply = await self.send("ERR?")
+        result = {}
+        if "=" in reply:
+            code = reply.split("=", 1)[1].strip()
+            categories = [
+                ErrorCategory.FAN,
+                ErrorCategory.LAMP,
+                ErrorCategory.TEMP,
+                ErrorCategory.COVER,
+                ErrorCategory.FILTER,
+                ErrorCategory.OTHER,
+            ]
+            status_map = {"0": "ok", "1": "warning", "2": "error"}
+            for i, cat in enumerate(categories):
+                if i < len(code):
+                    result[cat.value] = status_map.get(code[i], "unknown")
+                else:
+                    result[cat.value] = "unknown"
+        return result
 
 
 async def run_command(host: str, command: str) -> str:
     """One-shot helper: open, run one command, close."""
     async with EscVpNetClient(host) as client:
         return await client.send(command)
+
+
+def decode_power_state(code: str) -> str:
+    mapping = {
+        "00": "Off",
+        "01": "On",
+        "02": "Warming Up",
+        "03": "Cooling Down",
+        "04": "Standby (Network)",
+        "05": "Abnormal Standby",
+    }
+    return mapping.get(code, "Unknown")

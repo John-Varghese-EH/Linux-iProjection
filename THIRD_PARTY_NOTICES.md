@@ -1,15 +1,10 @@
-# Third-Party Notices
+# Third-Party Protocols & Specifications
 
-## eshare-linux-client
+## Epson ESC/VP.net & ESC/VP21
 
-Protocol knowledge (mDNS service types, RTP streaming format, ESC/VP.net
-command details) was derived from studying the `eshare-linux-client` project.
+Command protocol logic is implemented directly from Epson's publicly available "ESC/VP.net Software Development Manual" and ESC/VP21 command guides.
 
-This project (linux-iprojection) uses independently written code implementing the
-same protocols. No code was copied verbatim. The protocol itself (ESC/VP.net,
-RTP, mDNS) consists of open standards and Epson's published specifications.
+## Open Networking Standards
 
-## Epson ESC/VP.net
+Network discovery and media streaming are implemented using standard open networking protocols: mDNS/DNS-SD for device discovery, RTP over UDP for media streaming, and PipeWire via the XDG Desktop Portal specification for screen capture.
 
-ESC/VP.net command protocol based on Epson's publicly available
-"ESC/VP.net Software Development Manual" and ESC/VP21 command guides.

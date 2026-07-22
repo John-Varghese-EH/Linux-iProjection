@@ -105,6 +105,43 @@ class FakeEscVpServer:
             return f"SNO={self.serial}"
         elif cmd == "ERR?":
             return f"ERR={self.error_state}"
+        # New Enterprise Commands
+        elif cmd == "BRIGHT?":
+            return f"BRIGHT={getattr(self, 'brightness', 128)}"
+        elif cmd.startswith("BRIGHT "):
+            self.brightness = int(cmd.split(" ", 1)[1])
+            return ""
+        elif cmd == "CONTRAST?":
+            return f"CONTRAST={getattr(self, 'contrast', 128)}"
+        elif cmd.startswith("CONTRAST "):
+            self.contrast = int(cmd.split(" ", 1)[1])
+            return ""
+        elif cmd == "SHARPNESS?":
+            return f"SHARPNESS={getattr(self, 'sharpness', 128)}"
+        elif cmd.startswith("SHARPNESS "):
+            self.sharpness = int(cmd.split(" ", 1)[1])
+            return ""
+        elif cmd == "CTEMP?":
+            return f"CTEMP={getattr(self, 'ctemp', 7)}"
+        elif cmd.startswith("CTEMP "):
+            self.ctemp = int(cmd.split(" ", 1)[1])
+            return ""
+        elif cmd == "HKEYSTONE?":
+            return f"HKEYSTONE={getattr(self, 'hkeystone', 0)}"
+        elif cmd.startswith("HKEYSTONE "):
+            self.hkeystone = int(cmd.split(" ", 1)[1])
+            return ""
+        elif cmd == "VKEYSTONE?":
+            return f"VKEYSTONE={getattr(self, 'vkeystone', 0)}"
+        elif cmd.startswith("VKEYSTONE "):
+            self.vkeystone = int(cmd.split(" ", 1)[1])
+            return ""
+        elif cmd == "FILTER?":
+            return f"FILTER={getattr(self, 'filter_hours', 500)}"
+        elif cmd == "SIGNAL?":
+            return f"SIGNAL={getattr(self, 'signal', '00')}"
+        elif cmd == "RESOLUTION?":
+            return f"RESOLUTION={getattr(self, 'resolution', '1920x1080')}"
         elif cmd == "BADCMD":
             return "ERR=01"
         elif cmd == "":

@@ -1,7 +1,7 @@
 <div align="center">
   <img src="data/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg" width="128" alt="iProjection Logo"/>
   <h1>iProjection (Unofficial)</h1>
-  <p><b>The ultimate, enterprise-grade controller for Epson projectors on Linux.</b></p>
+  <p><b>Native control and screen casting for Epson projectors on Linux.</b></p>
   
   [![CI](https://github.com/John-Varghese-EH/Linux-iProjection/actions/workflows/ci.yml/badge.svg)](https://github.com/John-Varghese-EH/Linux-iProjection/actions/workflows/ci.yml)
   [![AUR Package](https://img.shields.io/aur/version/linux-iprojection)](https://aur.archlinux.org/packages/linux-iprojection)
@@ -10,24 +10,16 @@
   [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 </div>
 
----
-
-I built this application because I was frustrated by the lack of native, robust Linux support for Epson's enterprise hardware.
-
-**Linux-iProjection** bridges the gap in enterprise projector management by delivering native, robust Linux support for Epson hardware. Built for environments that demand seamless control, instant diagnostics, and high-performance screen casting without relying on proprietary or unsupported drivers.
-
-It bridges that gap. It gives you complete command over network and mDNS projection using native Linux technologies, packaged in a sleek, responsive GTK4 design.
+A native Linux application for controlling and casting to Epson projectors. Provides complete network control via ESC/VP.net, PJLink, and EShare protocols, featuring a GTK4/libadwaita interface alongside a full-featured CLI for scripting.
 
 ## Core Capabilities
 
-* **Native GTK4 Interface:** A hardware-accelerated, responsive graphical interface built on modern Linux desktop standards.
-* **Comprehensive Automation:** A feature-complete Command Line Interface (CLI) designed for shell scripting and remote SSH administration.
-* **Network Auto-Discovery:** Instant, zero-configuration projector detection across local subnets using mDNS and SSDP.
-* **Enterprise Diagnostics:** Real-time hardware telemetry including lamp hours, thermal warnings, and error state monitoring.
-* **PipeWire Screen Casting:** Low-latency, high-bandwidth screen mirroring optimized for Wayland and X11 display servers.
-* **PJLink Security:** Robust authentication support for secured enterprise environments.
-
----
+* **Native GTK4 Interface:** Fast, responsive UI built with GTK4 and libadwaita.
+* **CLI Automation:** Command line interface for shell scripts and remote administration over SSH.
+* **Network Auto-Discovery:** Automatic detection of network projectors via mDNS and LAN probing.
+* **Diagnostics & Monitoring:** Live hardware monitoring for lamp hours, power state, input sources, and error logs.
+* **PipeWire Screen Casting:** Low-latency desktop screen mirroring over RTP/UDP using PipeWire and XDG Desktop Portal.
+* **PJLink Security:** Authentication support for password-protected projectors.
 
 ## Installation
 
@@ -69,8 +61,6 @@ source .venv/bin/activate
 pip install -e .
 ```
 
----
-
 ## Command Line Interface
 
 The included `linux-iprojection` binary provides full parity with the graphical interface, making it ideal for automation.
@@ -90,8 +80,6 @@ linux-iprojection source HDMI1 192.168.1.100
 linux-iprojection status 192.168.1.100
 ```
 
----
-
 ## Contributing
 
 Contributions to the codebase are strongly encouraged. For major architectural changes or new protocol support, please open an issue first to discuss the implementation strategy. All patches must pass the integrated test suite prior to review.
@@ -101,8 +89,6 @@ To run the automated tests and linter locally:
 make test
 make lint
 ```
-
----
 
 ## License & Attribution
 

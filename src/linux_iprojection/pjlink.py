@@ -1,13 +1,12 @@
 """
-linux-iprojection - PJLink Protocol Controller
+linux-iprojection: PJLink Protocol Controller
 Part of the iProjection (Unofficial) project by John Varghese (J0X)
 https://github.com/John-Varghese-EH
 
 PJLink is an open, standardised projector control protocol (TCP port 4352).
 Many Epson models that do NOT expose ESC/VP.net still support PJLink.
 
-Usage
------
+Usage:
     import asyncio
     from .pjlink import PJLinkController
 
@@ -67,6 +66,11 @@ class PJLinkStatus:
     manufacturer: str = ""
     model: str = ""
     pjlink_class: int = 1
+    serial: str | None = None
+    input_resolution: str | None = None
+    filter_hours: int | None = None
+    frozen: bool | None = None
+    available_inputs: list | None = None
 
     def __post_init__(self):
         if self.errors is None:
@@ -90,8 +94,7 @@ class PJLinkController:
     """
     Asyncio PJLink Class 1/2 client.
 
-    Parameters
-    ----------
+    Parameters:
     host:
         Projector IP address.
     port:
@@ -247,6 +250,16 @@ class PJLinkController:
             status.model = self._extract_value(await self._command("INF2", "?"))
         except Exception as exc:
             log.warning("PJLink query_status partial failure: %s", exc)
+        
+        try:
+            status.serial = await self.get_serial()
+            status.input_resolution = await self.get_input_resolution()
+            status.filter_hours = await self.get_filter_hours()
+            status.frozen = await self.get_freeze()
+            status.available_inputs = await self.get_available_inputs()
+        except Exception as exc:
+            log.warning("PJLink Class 2 query_status partial failure: %s", exc)
+            
         return status
 
     # ── Raw command ───────────────────────────────────────────────────────
@@ -300,6 +313,42 @@ class PJLinkController:
                 log.warning("PJLink keep-alive failed: %s", exc)
                 self.connected = False
                 break
+
+    async def get_serial(self) -> str:
+        """Query projector serial number (Class 2)."""
+        return self._extract_value(await self._command("SNUM", "?"))
+
+    async def get_input_resolution(self) -> str:
+        """Query current input signal resolution (Class 2)."""
+        return self._extract_value(await self._command("IRES", "?"))
+
+    async def get_filter_hours(self) -> int:
+        """Query filter usage hours (Class 2)."""
+        resp = self._extract_value(await self._command("FILT", "?"))
+        try:
+            return int(resp.split()[0])
+        except (ValueError, IndexError):
+            return 0
+
+    async def get_available_inputs(self) -> list[str]:
+        """Query list of available input terminals (Class 2)."""
+        resp = self._extract_value(await self._command("INST", "?"))
+        if resp:
+            return [x.strip() for x in resp.split() if x.strip()]
+        return []
+
+    async def set_freeze(self, on: bool) -> None:
+        """Enable or disable freeze (Class 2)."""
+        await self._command("FREZ", "1" if on else "0")
+
+    async def get_freeze(self) -> bool:
+        """Query freeze state (Class 2)."""
+        resp = self._extract_value(await self._command("FREZ", "?"))
+        return resp.strip() == "1"
+
+    async def get_name(self) -> str:
+        """Query projector name."""
+        return self._extract_value(await self._command("NAME", "?"))
 
     # ── Async context manager ─────────────────────────────────────────────
 

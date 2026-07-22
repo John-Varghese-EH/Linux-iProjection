@@ -1,5 +1,5 @@
 """
-linux-iprojection - Unified Client Wrapper
+linux-iprojection unified client wrapper.
 Part of the iProjection (Unofficial) project by John Varghese (J0X)
 https://github.com/John-Varghese-EH
 """
@@ -25,6 +25,15 @@ class UnifiedStatus:
     mute: bool = False
     volume: int = 0
     serial: str = ""
+    brightness: int = 0
+    contrast: int = 0
+    sharpness: int = 0
+    color_temp: str = ""
+    filter_hours: int = 0
+    projector_name: str = ""
+    signal_present: bool = False
+    input_resolution: str = ""
+    errors_decoded: dict | None = None
 
 
 def wake_on_lan(ip: str) -> bool:
@@ -122,6 +131,78 @@ class ProjectorClient:
         if hasattr(self._client, "set_luminance"):
             await self._client.set_luminance(mode)
 
+    async def set_brightness(self, level: int):
+        if hasattr(self._client, "set_brightness"):
+            await self._client.set_brightness(level)
+
+    async def get_brightness(self) -> int:
+        if hasattr(self._client, "get_brightness"):
+            return await self._client.get_brightness()
+        return 0
+
+    async def set_contrast(self, level: int):
+        if hasattr(self._client, "set_contrast"):
+            await self._client.set_contrast(level)
+
+    async def get_contrast(self) -> int:
+        if hasattr(self._client, "get_contrast"):
+            return await self._client.get_contrast()
+        return 0
+
+    async def set_sharpness(self, level: int):
+        if hasattr(self._client, "set_sharpness"):
+            await self._client.set_sharpness(level)
+
+    async def get_sharpness(self) -> int:
+        if hasattr(self._client, "get_sharpness"):
+            return await self._client.get_sharpness()
+        return 0
+
+    async def set_color_temp(self, temp):
+        if hasattr(self._client, "set_color_temp"):
+            await self._client.set_color_temp(temp)
+
+    async def get_color_temp(self) -> str:
+        if hasattr(self._client, "get_color_temp"):
+            return await self._client.get_color_temp()
+        return ""
+
+    async def set_keystone(self, axis, value: int):
+        if hasattr(self._client, "set_keystone"):
+            await self._client.set_keystone(axis, value)
+
+    async def get_keystone(self, axis) -> int:
+        if hasattr(self._client, "get_keystone"):
+            return await self._client.get_keystone(axis)
+        return 0
+
+    async def get_filter_hours(self) -> int:
+        if hasattr(self._client, "get_filter_hours"):
+            return await self._client.get_filter_hours()
+        return 0
+
+    async def get_projector_name(self) -> str:
+        if hasattr(self._client, "get_projector_name"):
+            return await self._client.get_projector_name()
+        if hasattr(self._client, "get_name"):
+            return await self._client.get_name()
+        return ""
+
+    async def get_signal_status(self) -> bool:
+        if hasattr(self._client, "get_signal_status"):
+            return await self._client.get_signal_status()
+        return False
+
+    async def get_detailed_errors(self) -> dict:
+        if hasattr(self._client, "get_detailed_errors"):
+            return await self._client.get_detailed_errors()
+        return {}
+
+    async def get_input_resolution(self) -> str:
+        if hasattr(self._client, "get_input_resolution"):
+            return await self._client.get_input_resolution()
+        return ""
+
     async def get_status(self) -> UnifiedStatus:
         s = UnifiedStatus()
         try:
@@ -147,6 +228,44 @@ class ProjectorClient:
                 s.volume = await self._client.get_volume()
             if hasattr(self._client, "get_serial"):
                 s.serial = await self._client.get_serial()
+
+            # Extended enterprise fields
+            try:
+                s.brightness = await self.get_brightness()
+            except Exception:
+                pass
+            try:
+                s.contrast = await self.get_contrast()
+            except Exception:
+                pass
+            try:
+                s.sharpness = await self.get_sharpness()
+            except Exception:
+                pass
+            try:
+                s.color_temp = await self.get_color_temp()
+            except Exception:
+                pass
+            try:
+                s.filter_hours = await self.get_filter_hours()
+            except Exception:
+                pass
+            try:
+                s.projector_name = await self.get_projector_name()
+            except Exception:
+                pass
+            try:
+                s.signal_present = await self.get_signal_status()
+            except Exception:
+                pass
+            try:
+                s.input_resolution = await self.get_input_resolution()
+            except Exception:
+                pass
+            try:
+                s.errors_decoded = await self.get_detailed_errors()
+            except Exception:
+                pass
 
             return s
         except Exception as e:

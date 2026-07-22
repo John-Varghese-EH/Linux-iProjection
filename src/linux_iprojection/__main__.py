@@ -1,5 +1,5 @@
 """
-linux-iprojection - Main Entry Point
+linux-iprojection main entry point.
 """
 
 import sys
@@ -11,7 +11,12 @@ def main():
     # Otherwise route to GUI.
 
     # Check if the first argument is a valid CLI command or --help
-    cli_commands = {"discover", "status", "power", "source", "volume", "wake", "-h", "--help"}
+    cli_commands = {
+        "discover", "status", "power", "source", "volume", "wake", 
+        "mute", "freeze", "color-mode", "aspect", "luminance", 
+        "brightness", "contrast", "keystone", "raw", "info", 
+        "macro", "export", "-h", "--help"
+    }
 
     # Are we trying to run a CLI command?
     run_cli = False

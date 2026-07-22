@@ -142,3 +142,42 @@ async def test_not_connected_raises():
     client = EscVpNetClient("127.0.0.1", 3629)
     with pytest.raises(ProjectorError, match="Not connected"):
         await client.send("PWR?")
+
+
+@pytest.mark.asyncio
+async def test_enterprise_features(fake_server):
+    """Test the newly added enterprise features."""
+    async with EscVpNetClient("127.0.0.1", fake_server.actual_port) as client:
+        # Brightness
+        await client.set_brightness(140)
+        result = await client.get_brightness()
+        assert result == 140
+        
+        # Contrast
+        await client.set_contrast(150)
+        result = await client.get_contrast()
+        assert result == 150
+        
+        # Sharpness
+        await client.set_sharpness(160)
+        result = await client.get_sharpness()
+        assert result == 160
+        
+        # Color Temp
+        await client.set_color_temp(8)
+        result = await client.get_color_temp()
+        assert result == 8
+        
+        # Keystone
+        from linux_iprojection.protocol import KeystoneAxis
+        await client.set_keystone(KeystoneAxis.HORIZONTAL, 15)
+        
+        # Diagnostics
+        filter_hours = await client.get_filter_hours()
+        assert filter_hours == 500
+        
+        signal = await client.get_signal_status()
+        assert signal == "00"
+        
+        resolution = await client.get_input_resolution()
+        assert resolution == "1920x1080"
