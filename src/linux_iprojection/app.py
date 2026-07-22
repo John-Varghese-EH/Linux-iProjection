@@ -780,7 +780,9 @@ class MainWindow(Adw.ApplicationWindow):
         about.add_credit_section(
             "Architect & Developer",
             [
-                "John Varghese (J0X): Built to provide native Linux support for Epson projector control and casting."
+                "John Varghese (J0X): Built to provide native Linux support for Epson projector control and casting.",
+                "LinkedIn: https://www.linkedin.com/in/John--Varghese",
+                "GitHub: https://github.com/John-Varghese-EH"
             ],
         )
         about.add_link("View Application Logs", f"file://{log_path}")

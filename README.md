@@ -31,6 +31,13 @@ yay -S linux-iprojection
 paru -S linux-iprojection
 ```
 
+Or build manually via `makepkg` (pacman):
+```bash
+git clone https://aur.archlinux.org/linux-iprojection.git
+cd linux-iprojection
+makepkg -si
+```
+
 ### Ubuntu / Debian (PPA)
 For automated updates on Debian-based systems, add the [official PPA](https://launchpad.net/iprojection):
 ```bash
