@@ -21,6 +21,8 @@ A native Linux application for controlling and casting to Epson projectors. Prov
 * **PipeWire Screen Casting:** Low-latency desktop screen mirroring over RTP/UDP using PipeWire and XDG Desktop Portal.
 * **PJLink Security:** Authentication support for password-protected projectors.
 
+<img src="screenshots/iProjection_Screenshot_01_J0X.png" align="center" alt="iProjection GUI"/>
+
 ## Installation
 
 ### Arch Linux (AUR)
