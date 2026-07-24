@@ -1,6 +1,6 @@
 pkgbase = linux-iprojection
 	pkgdesc = Native Linux control & casting app for Epson projectors
-	pkgver = 1.0.2
+	pkgver = 1.1.0
 	pkgrel = 1
 	url = https://github.com/John-Varghese-EH/Linux-iProjection
 	arch = any
