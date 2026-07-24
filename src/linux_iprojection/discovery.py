@@ -176,7 +176,8 @@ async def discover_by_scan(
     ports: list[int] = None, network: ipaddress.IPv4Network | None = None
 ) -> list[DiscoveredDevice]:
     if ports is None:
-        ports = [ESCVP_PORT, PJLINK_PORT]
+        # 3629 = ESC/VP, 4352 = PJLink, 3620/3621 = iProjection data ports
+        ports = [ESCVP_PORT, PJLINK_PORT, 3620, 3621]
 
     networks = [network] if network else _local_ipv4_networks()
     if not networks:

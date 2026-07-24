@@ -165,7 +165,7 @@ def _probe_audio_encoder() -> tuple[str, str]:
 # XDG Desktop Portal ScreenCast
 
 
-async def _request_portal_stream() -> Optional[int]:
+async def _request_portal_stream(virtual: bool = False) -> Optional[int]:
     """Walk the xdg-desktop-portal ScreenCast flow and return a PipeWire node ID.
 
     Returns None if the user cancels the dialog or something goes wrong.
@@ -262,7 +262,7 @@ async def _request_portal_stream() -> Optional[int]:
                 (
                     session_handle,
                     {
-                        "types": GLib.Variant("u", 3),  # 1=Monitor, 2=Window -> 3=Both
+                        "types": GLib.Variant("u", 4 if virtual else 3),  # 4=Virtual, 3=Monitor+Window
                         "cursor_mode": GLib.Variant("u", 2),  # 2 = metadata
                         "handle_token": GLib.Variant("s", req2),
                     },
@@ -348,7 +348,7 @@ class ScreenCaster:
     def is_casting(self) -> bool:
         return self._is_casting
 
-    async def start(self, target: CastTarget) -> bool:
+    async def start(self, target: CastTarget, virtual: bool = False) -> bool:
         """Request a portal stream and start the GStreamer pipeline.
 
         Returns True if casting started successfully.
@@ -365,7 +365,14 @@ class ScreenCaster:
         # Get PipeWire node for real casting
         node_id = None
         if not is_file:
-            node_id = await _request_portal_stream()
+            try:
+                node_id = await _request_portal_stream(virtual=virtual)
+            except Exception as e:
+                log.error("Portal error: %s", e)
+                if self.on_error:
+                    self.on_error(f"Screen sharing failed: {e}")
+                return False
+                
             if node_id is None:
                 log.info("Portal cancelled or failed - not casting")
                 return False

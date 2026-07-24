@@ -1,4 +1,4 @@
-linux-iprojection (0.1.0-1) unstable; urgency=medium
+linux-iprojection (1.1.0-1) unstable; urgency=medium
 
   * Initial release of iProjection (Unofficial) for Linux.
   * Native GTK4/Libadwaita user interface.

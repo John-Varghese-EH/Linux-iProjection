@@ -120,6 +120,10 @@ class ProjectorStatus:
     filter_hours: int | None = None
     projector_name: str | None = None
     signal_present: bool | None = None
+    freeze: bool | None = None
+    tint: int | None = None
+    hreverse: bool | None = None
+    vreverse: bool | None = None
     errors_decoded: dict | None = None
 
 
@@ -184,8 +188,8 @@ class EscVpNetClient:
             while True:
                 await asyncio.sleep(10)
                 if self._writer is not None:
-                    # Send an empty CR to keep the connection alive
-                    self._writer.write(CMD_TERMINATOR)
+                    # Send PWR? to keep the connection alive (per protocol notes)
+                    self._writer.write(b"PWR?" + CMD_TERMINATOR)
                     await self._writer.drain()
                     await self._read_until_prompt()
         except asyncio.CancelledError:
@@ -294,6 +298,14 @@ class EscVpNetClient:
         """Enable or disable image freeze."""
         cmd = "FREEZE ON" if enable else "FREEZE OFF"
         await self.send(cmd)
+
+    async def get_freeze(self) -> bool:
+        """Query if image is frozen."""
+        reply = await self.send("FREEZE?")
+        if reply.startswith("FREEZE="):
+            val = reply.split("=", 1)[1]
+            return val == "ON"
+        return False
 
     async def send_key(self, hex_code: str) -> None:
         """
@@ -411,6 +423,22 @@ class EscVpNetClient:
             status.color_temp = await self.get_color_temp()
         except ProjectorError:
             pass
+        try:
+            status.freeze = await self.get_freeze()
+        except ProjectorError:
+            pass
+        try:
+            status.tint = await self.get_tint()
+        except ProjectorError:
+            pass
+        try:
+            status.hreverse = await self.get_hreverse()
+        except ProjectorError:
+            pass
+        try:
+            status.vreverse = await self.get_vreverse()
+        except ProjectorError:
+            pass
         return status
 
     async def set_brightness(self, level: int) -> None:
@@ -451,6 +479,41 @@ class EscVpNetClient:
             except ValueError:
                 pass
         return 0
+
+    async def set_tint(self, level: int) -> None:
+        """Set tint (0-255)."""
+        await self.send(f"TINT {level}")
+
+    async def get_tint(self) -> int:
+        reply = await self.send("TINT?")
+        if "=" in reply:
+            try:
+                return int(reply.split("=", 1)[1].strip())
+            except ValueError:
+                pass
+        return 0
+
+    async def set_hreverse(self, enable: bool) -> None:
+        """Enable or disable horizontal reverse (rear projection)."""
+        cmd = "HREVERSE ON" if enable else "HREVERSE OFF"
+        await self.send(cmd)
+
+    async def get_hreverse(self) -> bool:
+        reply = await self.send("HREVERSE?")
+        if reply.startswith("HREVERSE="):
+            return reply.split("=", 1)[1] == "ON"
+        return False
+
+    async def set_vreverse(self, enable: bool) -> None:
+        """Enable or disable vertical reverse (ceiling projection)."""
+        cmd = "VREVERSE ON" if enable else "VREVERSE OFF"
+        await self.send(cmd)
+
+    async def get_vreverse(self) -> bool:
+        reply = await self.send("VREVERSE?")
+        if reply.startswith("VREVERSE="):
+            return reply.split("=", 1)[1] == "ON"
+        return False
 
     async def set_color_temp(self, temp: ColorTemp) -> None:
         await self.send(f"CTEMP {temp.value}")

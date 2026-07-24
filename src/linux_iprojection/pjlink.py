@@ -71,6 +71,8 @@ class PJLinkStatus:
     filter_hours: int | None = None
     frozen: bool | None = None
     available_inputs: list | None = None
+    software_version: str | None = None
+    recommended_resolution: str | None = None
 
     def __post_init__(self):
         if self.errors is None:
@@ -252,11 +254,20 @@ class PJLinkController:
             log.warning("PJLink query_status partial failure: %s", exc)
         
         try:
+            clss_val = await self.query_class()
+            if clss_val.isdigit():
+                status.pjlink_class = int(clss_val)
+        except Exception:
+            pass
+            
+        try:
             status.serial = await self.get_serial()
             status.input_resolution = await self.get_input_resolution()
             status.filter_hours = await self.get_filter_hours()
             status.frozen = await self.get_freeze()
             status.available_inputs = await self.get_available_inputs()
+            status.software_version = await self.get_software_version()
+            status.recommended_resolution = await self.get_recommended_resolution()
         except Exception as exc:
             log.warning("PJLink Class 2 query_status partial failure: %s", exc)
             
@@ -317,6 +328,38 @@ class PJLinkController:
     async def get_serial(self) -> str:
         """Query projector serial number (Class 2)."""
         return self._extract_value(await self._command("SNUM", "?"))
+
+    async def get_software_version(self) -> str:
+        """Query projector software version (Class 2)."""
+        return self._extract_value(await self._command("SVER", "?"))
+
+    async def get_input_name(self, input_code: str) -> str:
+        """Query the name of an input terminal (Class 2)."""
+        return self._extract_value(await self._command("INNM", f"?{input_code}"))
+
+    async def get_recommended_resolution(self) -> str:
+        """Query the recommended resolution (Class 2)."""
+        return self._extract_value(await self._command("RRES", "?"))
+
+    async def get_lamp_replacement(self) -> str:
+        """Query lamp replacement model number (Class 2)."""
+        return self._extract_value(await self._command("RLMP", "?"))
+
+    async def get_filter_replacement(self) -> str:
+        """Query filter replacement model number (Class 2)."""
+        return self._extract_value(await self._command("RFIL", "?"))
+
+    async def adjust_speaker_volume(self, increase: bool) -> None:
+        """Adjust speaker volume up or down by one level (Class 2)."""
+        await self._command("SVOL", "1" if increase else "0")
+
+    async def adjust_mic_volume(self, increase: bool) -> None:
+        """Adjust microphone volume up or down by one level (Class 2)."""
+        await self._command("MVOL", "1" if increase else "0")
+
+    async def query_class(self) -> str:
+        """Query PJLink class supported by the projector."""
+        return self._extract_value(await self._command("CLSS", "?"))
 
     async def get_input_resolution(self) -> str:
         """Query current input signal resolution (Class 2)."""

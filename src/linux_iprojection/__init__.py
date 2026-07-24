@@ -9,4 +9,4 @@ import importlib.metadata
 try:
     __version__ = importlib.metadata.version("linux-iprojection")
 except importlib.metadata.PackageNotFoundError:
-    __version__ = "0.1.0"
+    __version__ = "1.1.0"

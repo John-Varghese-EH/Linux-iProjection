@@ -44,7 +44,7 @@ def _get_version() -> str:
 
             return __version__
         except Exception:
-            return "0.1.0"
+            return "1.1.0"
 
 
 # Async helper
@@ -136,8 +136,13 @@ class MainWindow(Adw.ApplicationWindow):
         self._load_persisted_devices()
         self.on_refresh(None)
 
+        self.set_hide_on_close(True)
+
         # Start polling if auto-connect
         self._start_polling()
+
+        self._tray_process = None
+        self._setup_tray_icon()
 
     # UI Construction
 
@@ -246,11 +251,10 @@ class MainWindow(Adw.ApplicationWindow):
 
         content_toolbar.add_top_bar(content_header)
 
-        # Content stack: empty state vs control panel vs casting state
+        # Content stack: control panel vs casting state
         self.content_stack = Gtk.Stack(
             transition_type=Gtk.StackTransitionType.CROSSFADE,
         )
-        self.content_stack.add_named(self._build_empty_state(), "empty")
         self.content_stack.add_named(self._build_control_panel(), "control")
         self.content_stack.add_named(self._build_casting_panel(), "casting")
         content_toolbar.set_content(self.content_stack)
@@ -295,26 +299,26 @@ class MainWindow(Adw.ApplicationWindow):
         bp = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 500sp"))
         bp.add_setter(self.split, "collapsed", True)
         self.add_breakpoint(bp)
-
-    def _build_empty_state(self) -> Gtk.Widget:
-        return Adw.StatusPage(
-            title="Select a projector",
-            description="Choose a device from the sidebar to view controls",
-            icon_name="video-display-symbolic",
-        )
+        bp.add_setter(self.split, "collapsed", True)
+        self.add_breakpoint(bp)
 
     def _build_control_panel(self) -> Gtk.Widget:
-        box = Gtk.Box(
+        self.control_panel_box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=24,
             margin_top=24,
             margin_bottom=24,
         )
+        box = self.control_panel_box
+        box.set_sensitive(False)
 
-        self.device_title = Gtk.Label(css_classes=["title-1"], xalign=0)
+        self.device_title = Gtk.Label(
+            css_classes=["title-1"], xalign=0, label="No Projector Connected"
+        )
         self.device_subtitle = Gtk.Label(
             css_classes=["dim-label"],
             xalign=0,
+            label="Select a device from the sidebar to connect",
         )
         box.append(self.device_title)
         box.append(self.device_subtitle)
@@ -348,6 +352,87 @@ class MainWindow(Adw.ApplicationWindow):
         action_box.append(self.freeze_btn)
 
         box.append(action_box)
+
+        # Cast
+        cast_group = Adw.PreferencesGroup(
+            title="Screen Casting",
+            description="Wirelessly mirror your screen directly to the projector",
+        )
+        cast_row = Adw.ActionRow(
+            title="Cast Screen or Window",
+            subtitle="Stream your desktop or a specific app via PipeWire",
+        )
+        self.cast_btn = Gtk.Button(
+            label="Start Casting",
+            css_classes=["suggested-action", "pill"],
+            valign=Gtk.Align.CENTER,
+        )
+        self.cast_btn.connect("clicked", self.on_cast_clicked)
+        cast_row.add_suffix(self.cast_btn)
+        cast_group.add(cast_row)
+        
+        # Display Mode (Mirror vs Extend)
+        self.display_mode_row = Adw.ComboRow(
+            title="Display Mode",
+            subtitle="Choose between mirroring or extending your desktop",
+        )
+        self.display_mode_model = Gtk.StringList.new(
+            ["Mirror Screen (Native)", "Extend Screen (Virtual Monitor)"]
+        )
+        self.display_mode_row.set_model(self.display_mode_model)
+        cast_group.add(self.display_mode_row)
+
+        # Hardware Acceleration (Encoder Preset)
+        self.encoder_preset_row = Adw.ComboRow(
+            title="Hardware Acceleration",
+            subtitle="Select the encoder to use for casting (reduces latency)",
+        )
+        self.encoder_preset_model = Gtk.StringList.new(
+            ["Auto-Detect", "Intel / AMD (VAAPI)", "Nvidia (NVENC)", "Software (CPU)"]
+        )
+        self.encoder_preset_row.set_model(self.encoder_preset_model)
+        cast_group.add(self.encoder_preset_row)
+
+        # Split position
+        self.split_pos_row = Adw.ComboRow(
+            title="Multi-PC Projection",
+            subtitle="Choose your quadrant (Full screen by default)",
+        )
+        self.split_pos_model = Gtk.StringList.new(
+            ["Full Screen", "Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"]
+        )
+        self.split_pos_row.set_model(self.split_pos_model)
+        cast_group.add(self.split_pos_row)
+
+        # Audio toggle
+        audio_row = Adw.ActionRow(
+            title="Include audio",
+            subtitle="Stream system audio alongside video",
+        )
+        self.audio_switch = Gtk.Switch(valign=Gtk.Align.CENTER, active=True)
+        audio_row.add_suffix(self.audio_switch)
+        audio_row.set_activatable_widget(self.audio_switch)
+        cast_group.add(audio_row)
+
+        # Test Patterns
+        from .cast import TEST_PATTERNS
+        pattern_row = Adw.ActionRow(
+            title="Test Pattern",
+            subtitle="Send diagnostic calibration patterns",
+        )
+        self.pattern_dropdown = Gtk.DropDown.new_from_strings(list(TEST_PATTERNS.keys()))
+        pattern_btn = Gtk.Button(label="Cast Pattern", valign=Gtk.Align.CENTER)
+        pattern_btn.connect("clicked", self.on_cast_pattern_clicked)
+        
+        pattern_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER)
+        pattern_box.append(self.pattern_dropdown)
+        pattern_box.append(pattern_btn)
+        pattern_row.add_suffix(pattern_box)
+        cast_group.add(pattern_row)
+
+        box.append(cast_group)
+
+
 
         # Volume
         vol_group = Adw.PreferencesGroup(title="Audio")
@@ -488,24 +573,48 @@ class MainWindow(Adw.ApplicationWindow):
         macro_box.append(macro_btn)
         macro_row.add_suffix(macro_box)
         macro_group.add(macro_row)
+        
+        save_profile_row = Adw.ActionRow(title="Save Current State as Profile", subtitle="Save your adjustments as a new macro")
+        save_profile_btn = Gtk.Button(label="Save", valign=Gtk.Align.CENTER)
+        save_profile_btn.connect("clicked", self.on_save_profile_clicked)
+        save_profile_row.add_suffix(save_profile_btn)
+        macro_group.add(save_profile_row)
         box.append(macro_group)
 
         # Remote Control D-Pad
         remote_group = Adw.PreferencesGroup(title="Remote Control")
+        
+        # We will create a "physical remote" look using the OSD style
+        remote_shell = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            halign=Gtk.Align.CENTER,
+            margin_top=16,
+            margin_bottom=16,
+            css_classes=["osd", "card"],
+        )
+        remote_shell.set_size_request(240, -1)
+        
         dpad_box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
             halign=Gtk.Align.CENTER,
-            margin_top=12,
-            margin_bottom=12,
+            margin_top=24,
+            margin_bottom=24,
+            spacing=24,
         )
-        grid = Gtk.Grid(column_spacing=8, row_spacing=8)
+
+        grid = Gtk.Grid(column_spacing=12, row_spacing=12, halign=Gtk.Align.CENTER)
 
         def _build_dpad_btn(icon_name: str, key_code: str, css_class="circular") -> Gtk.Button:
             if icon_name.startswith("label:"):
                 btn = Gtk.Button(label=icon_name.split(":")[1], css_classes=[css_class])
             else:
                 btn = Gtk.Button(icon_name=icon_name, css_classes=[css_class])
-            btn.set_size_request(48, 48)
+            
+            if css_class == "circular":
+                btn.set_size_request(54, 54)
+            else:
+                btn.set_size_request(70, 36)
+                
             btn.connect("clicked", lambda x: self.on_remote_key(key_code))
             return btn
 
@@ -514,7 +623,6 @@ class MainWindow(Adw.ApplicationWindow):
             orientation=Gtk.Orientation.HORIZONTAL,
             spacing=32,
             halign=Gtk.Align.CENTER,
-            margin_bottom=16,
         )
         top_row.append(_build_dpad_btn("label:Menu", "43", "pill"))
         top_row.append(_build_dpad_btn("label:Esc", "05", "pill"))
@@ -523,54 +631,37 @@ class MainWindow(Adw.ApplicationWindow):
         # D-Pad
         grid.attach(_build_dpad_btn("go-up-symbolic", "35"), 1, 0, 1, 1)
         grid.attach(_build_dpad_btn("go-previous-symbolic", "5B"), 0, 1, 1, 1)
-        grid.attach(_build_dpad_btn("label:OK", "49", "suggested-action"), 1, 1, 1, 1)
+        grid.attach(_build_dpad_btn("label:OK", "49", "suggested-action circular"), 1, 1, 1, 1)
         grid.attach(_build_dpad_btn("go-next-symbolic", "5C"), 2, 1, 1, 1)
         grid.attach(_build_dpad_btn("go-down-symbolic", "36"), 1, 2, 1, 1)
         dpad_box.append(grid)
 
-        # Bottom Row (A/V Mute, Source Search)
+        # Bottom Rows
         bottom_row = Gtk.Box(
             orientation=Gtk.Orientation.HORIZONTAL,
             spacing=32,
             halign=Gtk.Align.CENTER,
-            margin_top=16,
         )
-        bottom_row.append(_build_dpad_btn("label:A/V Mute", "3E", "pill"))
+        bottom_row.append(_build_dpad_btn("label:User", "48", "pill"))
         bottom_row.append(_build_dpad_btn("label:Search", "67", "pill"))
         dpad_box.append(bottom_row)
 
-        # Extra Row (User, Default)
-        extra_row = Gtk.Box(
-            orientation=Gtk.Orientation.HORIZONTAL,
-            spacing=32,
-            halign=Gtk.Align.CENTER,
-            margin_top=16,
-        )
-        extra_row.append(_build_dpad_btn("label:User", "48", "pill"))
-        extra_row.append(_build_dpad_btn("label:Default", "4A", "pill"))
-        dpad_box.append(extra_row)
-
-        # Volume Row (Vol-, Vol+)
         vol_row = Gtk.Box(
             orientation=Gtk.Orientation.HORIZONTAL,
             spacing=32,
             halign=Gtk.Align.CENTER,
-            margin_top=16,
         )
         vol_row.append(_build_dpad_btn("label:Vol -", "59", "pill"))
         vol_row.append(_build_dpad_btn("label:Vol +", "58", "pill"))
         dpad_box.append(vol_row)
+        
+        remote_shell.append(dpad_box)
 
-        # We must place the dpad_box into a generic widget or a bin inside PreferencesGroup.
-        # However, PreferencesGroup doesn't require rows, it can accept any widget directly in libadwaita >= 1.2
-        # Let's wrap it in a listbox row to be safe and clean.
         dpad_row = Gtk.ListBoxRow(activatable=False, selectable=False)
-        dpad_row.set_child(dpad_box)
-        dpad_listbox = Gtk.ListBox(css_classes=["boxed-list"])
+        dpad_row.set_child(remote_shell)
+        dpad_listbox = Gtk.ListBox(css_classes=["boxed-list"], halign=Gtk.Align.CENTER)
         dpad_listbox.append(dpad_row)
 
-        # Adw.PreferencesGroup add() takes widgets directly, but they usually look better if they are rows.
-        # In Adw 1.4+, we can just append a row.
         remote_group.add(dpad_listbox)
         box.append(remote_group)
 
@@ -596,62 +687,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         box.append(status_group)
 
-        # Cast
-        cast_group = Adw.PreferencesGroup(
-            title="Screen Casting",
-            description="Wirelessly mirror your screen directly to the projector",
-        )
-        cast_row = Adw.ActionRow(
-            title="Cast Screen or Window",
-            subtitle="Stream your desktop or a specific app via PipeWire",
-        )
-        self.cast_btn = Gtk.Button(
-            label="Start Casting",
-            css_classes=["suggested-action"],
-            valign=Gtk.Align.CENTER,
-        )
-        self.cast_btn.connect("clicked", self.on_cast_clicked)
-        cast_row.add_suffix(self.cast_btn)
-        cast_group.add(cast_row)
 
-        # Split position
-        self.split_pos_row = Adw.ComboRow(
-            title="Multi-PC Projection",
-            subtitle="Choose your quadrant (Full screen by default)",
-        )
-        self.split_pos_model = Gtk.StringList.new(
-            ["Full Screen", "Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"]
-        )
-        self.split_pos_row.set_model(self.split_pos_model)
-        cast_group.add(self.split_pos_row)
-
-        # Audio toggle
-        audio_row = Adw.ActionRow(
-            title="Include audio",
-            subtitle="Stream system audio alongside video",
-        )
-        self.audio_switch = Gtk.Switch(valign=Gtk.Align.CENTER, active=True)
-        audio_row.add_suffix(self.audio_switch)
-        audio_row.set_activatable_widget(self.audio_switch)
-        cast_group.add(audio_row)
-
-        # Test Patterns
-        from .cast import TEST_PATTERNS
-        pattern_row = Adw.ActionRow(
-            title="Test Pattern",
-            subtitle="Send diagnostic calibration patterns",
-        )
-        self.pattern_dropdown = Gtk.DropDown.new_from_strings(list(TEST_PATTERNS.keys()))
-        pattern_btn = Gtk.Button(label="Cast Pattern", valign=Gtk.Align.CENTER)
-        pattern_btn.connect("clicked", self.on_cast_pattern_clicked)
-        
-        pattern_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, valign=Gtk.Align.CENTER)
-        pattern_box.append(self.pattern_dropdown)
-        pattern_box.append(pattern_btn)
-        pattern_row.add_suffix(pattern_box)
-        cast_group.add(pattern_row)
-
-        box.append(cast_group)
 
         # Advanced Console
         console_group = Adw.PreferencesGroup(
@@ -754,6 +790,79 @@ class MainWindow(Adw.ApplicationWindow):
         app = self.get_application()
         app.set_accels_for_action("app.preferences", ["<Control>comma"])
         app.set_accels_for_action("app.shortcuts", ["<Control>question"])
+
+    def _setup_tray_icon(self) -> None:
+        import os
+        import subprocess
+        import sys
+        import threading
+
+        script_path = os.path.join(os.path.dirname(__file__), "tray.py")
+        
+        try:
+            self._tray_process = subprocess.Popen(
+                [sys.executable, script_path],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                text=True,
+                bufsize=1
+            )
+
+            def listen_to_tray():
+                while self._tray_process and self._tray_process.poll() is None:
+                    line = self._tray_process.stdout.readline()
+                    if not line:
+                        break
+                    cmd = line.strip()
+                    if cmd:
+                        GLib.idle_add(self._handle_tray_command, cmd)
+
+            threading.Thread(target=listen_to_tray, daemon=True).start()
+        except Exception as e:
+            log.error(f"Failed to start tray icon: {e}")
+
+    def _update_tray_state(self) -> None:
+        if not self._tray_process or self._tray_process.poll() is not None:
+            return
+        
+        is_connected = "1" if self.current_device is not None else "0"
+        is_casting = "1" if self._is_casting else "0"
+        
+        try:
+            self._tray_process.stdin.write(f"STATE:connected={is_connected}\n")
+            self._tray_process.stdin.write(f"STATE:casting={is_casting}\n")
+            self._tray_process.stdin.flush()
+        except Exception:
+            pass
+
+    def _set_casting_state(self, state: bool) -> None:
+        self._is_casting = state
+        self._update_tray_state()
+
+    def _handle_tray_command(self, cmd: str) -> None:
+        if cmd == "TOGGLE_WINDOW":
+            if self.get_visible():
+                self.set_visible(False)
+            else:
+                self.set_visible(True)
+                self.present()
+        elif cmd == "FREEZE_TOGGLE":
+            if self.current_device is not None:
+                self.freeze_btn.set_active(not self.freeze_btn.get_active())
+        elif cmd == "MUTE_TOGGLE":
+            if self.current_device is not None:
+                self.mute_btn.set_active(not self.mute_btn.get_active())
+        elif cmd == "POWER_OFF":
+            if self.current_device is not None:
+                self.power_btn.set_active(False)
+        elif cmd == "STOP_SHARING":
+            if self._is_casting:
+                self.on_stop_cast_clicked(None)
+        elif cmd == "QUIT":
+            if self._tray_process:
+                self._tray_process.terminate()
+                self._tray_process = None
+            self.get_application().quit()
 
     # About dialog
 
@@ -1130,6 +1239,8 @@ class MainWindow(Adw.ApplicationWindow):
 
     def on_device_selected(self, _listbox, row: DeviceRow) -> None:
         self.current_device = row.device
+        self.control_panel_box.set_sensitive(True)
+        self._update_tray_state()
         self.device_title.set_label(row.device.name or row.device.address)
         self.device_subtitle.set_label(row.device.address)
         self.content_stack.set_visible_child_name("control")
@@ -1599,6 +1710,18 @@ class MainWindow(Adw.ApplicationWindow):
 
         device = self.current_device
         audio_enabled = self.audio_switch.get_active()
+        is_virtual = self.display_mode_row.get_selected() == 1
+        
+        encoder_idx = self.encoder_preset_row.get_selected()
+        from .cast import EncoderPreset
+        if encoder_idx == 1:
+            enc = EncoderPreset.VAAPI
+        elif encoder_idx == 2:
+            enc = EncoderPreset.NVENC
+        elif encoder_idx == 3:
+            enc = EncoderPreset.SOFTWARE
+        else:
+            enc = EncoderPreset.AUTO
 
         def start_cast():
             try:
@@ -1615,13 +1738,20 @@ class MainWindow(Adw.ApplicationWindow):
                 self._caster = ScreenCaster(
                     sink=sink,
                     audio_enabled=audio_enabled,
+                    encoder_preset=enc,
                     stream_quality=self._config.stream_quality,
                     on_stats=self._on_cast_stats,
                     on_error=self._on_cast_error,
                 )
                 # Run the async portal request
-                asyncio.run(self._caster.start(target))
-                GLib.idle_add(self._on_cast_started, device.name or device.address)
+                asyncio.run(self._caster.start(target, virtual=is_virtual))
+                
+                # Check if casting actually started
+                if self._caster.is_casting():
+                    GLib.idle_add(self._on_cast_started, device.name or device.address)
+                else:
+                    GLib.idle_add(self._on_cast_failed, "Casting was cancelled or failed to start")
+
             except Exception as e:
                 log.error("Cast failed: %s", e)
                 GLib.idle_add(self._on_cast_failed, str(e))
@@ -1629,7 +1759,7 @@ class MainWindow(Adw.ApplicationWindow):
         threading.Thread(target=start_cast, daemon=True).start()
 
     def _on_cast_started(self, device_name: str) -> None:
-        self._is_casting = True
+        self._set_casting_state(True)
         self.casting_title.set_label(f"Casting to {device_name}")
         self.casting_status.set_label("Streaming…")
         self.content_stack.set_visible_child_name("casting")
@@ -1662,7 +1792,7 @@ class MainWindow(Adw.ApplicationWindow):
         GLib.idle_add(self._handle_cast_error, error_msg)
 
     def _handle_cast_error(self, error_msg: str) -> None:
-        self._is_casting = False
+        self._set_casting_state(False)
         self.content_stack.set_visible_child_name("control")
         self.cast_btn.set_sensitive(True)
         self.cast_btn.set_label("Start Casting")
@@ -1672,7 +1802,7 @@ class MainWindow(Adw.ApplicationWindow):
         if self._caster:
             self._caster.stop()
             self._caster = None
-        self._is_casting = False
+        self._set_casting_state(False)
         self.content_stack.set_visible_child_name("control")
         self.cast_btn.set_sensitive(True)
         self.cast_btn.set_label("Start Casting")
@@ -1781,7 +1911,26 @@ class MainWindow(Adw.ApplicationWindow):
                 for step in macro.steps:
                     method = getattr(client, step.command, None)
                     if method:
-                        await method(*step.args)
+                        if isinstance(step.args, dict):
+                            import inspect
+                            from enum import Enum
+                            sig = inspect.signature(method)
+                            kwargs = {}
+                            for k, v in step.args.items():
+                                if k in sig.parameters:
+                                    param_type = sig.parameters[k].annotation
+                                    if isinstance(param_type, type) and issubclass(param_type, Enum) and isinstance(v, str):
+                                        try:
+                                            kwargs[k] = param_type[v]
+                                        except KeyError:
+                                            kwargs[k] = v
+                                    else:
+                                        kwargs[k] = v
+                            await method(**kwargs)
+                        elif isinstance(step.args, list):
+                            await method(*step.args)
+                        else:
+                            await method()
                         if step.delay_ms:
                             await asyncio.sleep(step.delay_ms / 1000.0)
 
@@ -1790,8 +1939,43 @@ class MainWindow(Adw.ApplicationWindow):
             if error:
                 self._toast(f"Macro failed: {error}")
             else:
-                self._toast(f"Macro '{macro_name}' complete.")
-                GLib.timeout_add_seconds(1, lambda: (self._refresh_status(), False)[1])
+                self._toast("Macro completed")
+
+    def on_save_profile_clicked(self, _button) -> None:
+        if not self.current_device:
+            self._toast("Connect to a projector first")
+            return
+            
+        import time
+
+        from .config import Macro, MacroStep
+        
+        name = f"Custom Profile {int(time.time()) % 10000}"
+        
+        # Build the steps based on current UI state
+        steps = []
+        
+        source = self.source_dropdown.get_selected_item()
+        if source:
+            source_name = source.get_string().replace(" ", "_").upper()
+            steps.append(MacroStep(command="set_source", args={"source": source_name}, delay_ms=1000))
+            
+        color_mode = self.color_mode_row.get_selected_item()
+        if color_mode:
+            cm_name = color_mode.get_string().replace(" ", "_").upper()
+            steps.append(MacroStep(command="set_color_mode", args={"mode": cm_name}, delay_ms=500))
+            
+        lum_mode = self.luminance_row.get_selected_item()
+        if lum_mode:
+            lm_name = lum_mode.get_string().replace(" ", "_").upper()
+            steps.append(MacroStep(command="set_luminance", args={"mode": lm_name}, delay_ms=500))
+            
+        steps.append(MacroStep(command="set_volume", args={"level": int(self.vol_scale.get_value())}, delay_ms=200))
+        
+        new_macro = Macro(name=name, icon="preferences-system-symbolic", steps=steps)
+        self._macro_store.add_macro(new_macro)
+        self._refresh_macro_dropdown()
+        self._toast(f"Profile saved: {name}")
 
     # Test Patterns Handler
 
@@ -1813,7 +1997,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._toast(f"Casting {pattern_name} pattern...")
         self.content_stack.set_visible_child_name("casting")
         self.casting_status.set_label(f"Pattern: {pattern_name}")
-        self._is_casting = True
+        self._set_casting_state(True)
         
         def on_stats(fps, bitrate):
             GLib.idle_add(self._update_stats, fps, bitrate)
