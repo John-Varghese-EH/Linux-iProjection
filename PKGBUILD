@@ -1,5 +1,5 @@
 pkgname=linux-iprojection
-pkgver=1.0.2
+pkgver=1.1.0
 _srcver=1.1.0
 pkgrel=1
 pkgdesc="Native Linux control & casting app for Epson projectors"
