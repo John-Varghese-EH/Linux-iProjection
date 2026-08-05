@@ -11,7 +11,7 @@ run:
 	glib-compile-resources --sourcedir=data data/linux_iprojection.gresource.xml --target=data/linux_iprojection.gresource
 	$(PYTHON) -m venv .venv --system-site-packages 2>/dev/null || true
 	.venv/bin/pip install -q -e . 2>/dev/null || true
-	.venv/bin/linux-iprojection
+	PYTHONPATH=src .venv/bin/linux-iprojection
 
 test:
 	$(PYTHON) -m venv .venv --system-site-packages 2>/dev/null || true

@@ -49,10 +49,6 @@ class FakeEscVpServer:
                 writer.write(self.HANDSHAKE)
             await writer.drain()
 
-            # Send prompt
-            writer.write(b":")
-            await writer.drain()
-
             # Command loop
             while True:
                 try:

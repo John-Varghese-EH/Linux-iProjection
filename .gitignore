@@ -59,3 +59,4 @@ wheels/
 scratch*.py
 test_about*.py
 test_icon.py
+/reference

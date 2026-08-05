@@ -125,6 +125,17 @@ class ProjectorStatus:
     hreverse: bool | None = None
     vreverse: bool | None = None
     errors_decoded: dict | None = None
+    color_mode: str | None = None
+    aspect: str | None = None
+    luminance: str | None = None
+
+    @property
+    def errors(self) -> str | None:
+        return self.error
+
+    @errors.setter
+    def errors(self, val: str | None) -> None:
+        self.error = val
 
 
 class EscVpNetClient:
@@ -159,11 +170,9 @@ class EscVpNetClient:
         except (asyncio.IncompleteReadError, asyncio.TimeoutError) as e:
             raise ProjectorError(f"Handshake with {self.host} failed: {e}") from e
 
-        if reply != HANDSHAKE:
+        if not reply.startswith(b"ESC/VP.net\x10\x03"):
             raise ProjectorError(f"Unexpected handshake reply from {self.host}: {reply!r}")
 
-        # After a successful handshake the projector sends a ':' prompt.
-        await self._read_until_prompt()
         log.debug("Connected and handshook with %s:%s", self.host, self.port)
 
     async def connect(self) -> None:
@@ -216,6 +225,10 @@ class EscVpNetClient:
                 pass
         self._reader = self._writer = None
 
+    async def disconnect(self) -> None:
+        """Alias for close() to provide consistent API across clients."""
+        await self.close()
+
     async def __aenter__(self) -> "EscVpNetClient":
         await self.connect()
         return self
@@ -261,8 +274,9 @@ class EscVpNetClient:
             return reply.split("=", 1)[1]
         return reply
 
-    async def set_source(self, source: Source) -> None:
-        await self.send(f"SOURCE {source.value}")
+    async def set_source(self, source: Source | str) -> None:
+        val = getattr(source, "value", str(source))
+        await self.send(f"SOURCE {val}")
 
     async def get_source(self) -> str:
         reply = await self.send("SOURCE?")
@@ -314,8 +328,9 @@ class EscVpNetClient:
         """
         await self.send(f"KEY {hex_code}")
 
-    async def set_color_mode(self, mode: ColorMode) -> None:
-        await self.send(f"CMODE {mode.value}")
+    async def set_color_mode(self, mode: ColorMode | str) -> None:
+        val = getattr(mode, "value", str(mode))
+        await self.send(f"CMODE {val}")
 
     async def get_color_mode(self) -> str:
         reply = await self.send("CMODE?")
@@ -323,8 +338,9 @@ class EscVpNetClient:
             return reply.split("=", 1)[1]
         return reply
 
-    async def set_aspect_ratio(self, aspect: AspectRatio) -> None:
-        await self.send(f"ASPECT {aspect.value}")
+    async def set_aspect_ratio(self, aspect: AspectRatio | str) -> None:
+        val = getattr(aspect, "value", str(aspect))
+        await self.send(f"ASPECT {val}")
 
     async def get_aspect_ratio(self) -> str:
         reply = await self.send("ASPECT?")
@@ -332,8 +348,9 @@ class EscVpNetClient:
             return reply.split("=", 1)[1]
         return reply
 
-    async def set_luminance(self, mode: LuminanceMode) -> None:
-        await self.send(f"LUMINANCE {mode.value}")
+    async def set_luminance(self, mode: LuminanceMode | str) -> None:
+        val = getattr(mode, "value", str(mode))
+        await self.send(f"LUMINANCE {val}")
 
     async def get_luminance(self) -> str:
         reply = await self.send("LUMINANCE?")
@@ -437,6 +454,18 @@ class EscVpNetClient:
             pass
         try:
             status.vreverse = await self.get_vreverse()
+        except ProjectorError:
+            pass
+        try:
+            status.color_mode = await self.get_color_mode()
+        except ProjectorError:
+            pass
+        try:
+            status.aspect = await self.get_aspect()
+        except ProjectorError:
+            pass
+        try:
+            status.luminance = await self.get_luminance()
         except ProjectorError:
             pass
         return status
@@ -551,10 +580,13 @@ class EscVpNetClient:
         return 0
 
     async def get_projector_name(self) -> str:
-        reply = await self.send("PNAME?")
-        if reply.startswith("PNAME="):
-            return reply.split("=", 1)[1]
-        return reply
+        try:
+            reply = await self.send("PNAME?")
+            if reply.startswith("PNAME="):
+                return reply.split("=", 1)[1]
+            return reply if reply and not reply.startswith("ERR") else ""
+        except ProjectorError:
+            return ""
 
     async def get_signal_status(self) -> bool:
         """Check if the current input source has an active signal."""

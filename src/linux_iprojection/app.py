@@ -11,6 +11,7 @@ results back to the UI thread via GLib.idle_add.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import sys
 import threading
@@ -68,19 +69,32 @@ def _run_async(coro):
     return decorator
 
 
+def _normalize_ip(ip_str: str) -> str:
+    """Strip leading zeros and whitespace from an IPv4 address string."""
+    ip_str = ip_str.strip()
+    try:
+        parts = ip_str.split(".")
+        if len(parts) == 4 and all(p.isdigit() for p in parts):
+            return ".".join(str(int(p)) for p in parts)
+        return str(ipaddress.ip_address(ip_str))
+    except Exception:
+        return ip_str
+
+
 # Device list row
 
 
 class DeviceRow(Adw.ActionRow):
     """A row in the sidebar device list."""
 
-    def __init__(self, device: DiscoveredDevice):
+    def __init__(self, device: DiscoveredDevice, on_delete=None):
         title = device.alias if device.alias else (device.name or device.address)
         super().__init__(
             title=title,
             subtitle=device.address,
         )
         self.device = device
+        self._on_delete = on_delete
 
         # Icon based on discovery source
         icon_name = "video-display-symbolic"
@@ -99,13 +113,28 @@ class DeviceRow(Adw.ActionRow):
             )
             self.add_suffix(badge)
 
+        # Delete button
+        self.delete_btn = Gtk.Button(
+            icon_name="user-trash-symbolic",
+            tooltip_text="Remove projector",
+            css_classes=["flat", "circular"],
+            valign=Gtk.Align.CENTER,
+        )
+        self.delete_btn.connect("clicked", self._on_delete_clicked)
+        self.add_suffix(self.delete_btn)
+
         self.set_activatable(True)
+
+    def _on_delete_clicked(self, _btn):
+        if self._on_delete:
+            self._on_delete(self)
 
     def update_from(self, device: DiscoveredDevice) -> None:
         self.device = device
         title = device.alias if device.alias else (device.name or device.address)
         self.set_title(title)
         self.set_subtitle(device.address)
+
 
 
 # Main window
@@ -243,6 +272,7 @@ class MainWindow(Adw.ApplicationWindow):
             primary=True,
         )
         menu = Gio.Menu()
+        menu.append("Clear Saved Devices", "app.clear_devices")
         menu.append("Preferences", "app.preferences")
         menu.append("Keyboard Shortcuts", "app.shortcuts")
         menu.append("About iProjection", "app.about")
@@ -782,9 +812,25 @@ class MainWindow(Adw.ApplicationWindow):
         shortcuts_action.connect("activate", self._show_shortcuts)
         app.add_action(shortcuts_action)
 
+        clear_action = Gio.SimpleAction.new("clear_devices", None)
+        clear_action.connect("activate", self._on_clear_devices)
+        app.add_action(clear_action)
+
         refresh_action = Gio.SimpleAction.new("refresh", None)
         refresh_action.connect("activate", lambda *_: self._refresh_status())
         app.add_action(refresh_action)
+
+    def _on_clear_devices(self, *_args):
+        self._device_store.clear_all()
+        # Remove all persisted and manual from the UI
+        to_remove = []
+        for i in range(self.device_list.get_n_items()):
+            row = self.device_list.get_row_at_index(i)
+            if row and hasattr(row, "device") and row.device.source in ("persisted", "manual"):
+                to_remove.append(row)
+        for row in to_remove:
+            self._delete_device_row(row)
+        self._toast("Saved devices cleared")
 
     def _setup_shortcuts(self) -> None:
         app = self.get_application()
@@ -1144,6 +1190,35 @@ class MainWindow(Adw.ApplicationWindow):
             self.error_banner.set_revealed(False)
             self._populate_devices(devices or [])
 
+    def _delete_device_row(self, row: DeviceRow) -> None:
+        addr = row.device.address
+        name = row.device.alias or row.device.name or addr
+        log.info("Removing device: %s (%s)", name, addr)
+
+        # Remove from device store
+        self._device_store.remove_device(addr)
+
+        # If currently active device, reset control panel
+        if self.current_device and (
+            self.current_device.address == addr or self.current_device.name == addr
+        ):
+            if self._is_casting:
+                self.on_stop_cast_clicked(None)
+            self.current_device = None
+            self.control_panel_box.set_sensitive(False)
+            self.device_title.set_label("No Projector Connected")
+            self.device_subtitle.set_label("Select a device from the sidebar to connect")
+            self.split.set_show_content(False)
+
+        # Remove from ListBox
+        self.device_list.remove(row)
+
+        # Check if list is now empty
+        if self.device_list.get_row_at_index(0) is None:
+            self.sidebar_stack.set_visible_child_name("empty")
+
+        self._toast(f"Removed {name}")
+
     def _populate_devices(self, devices: list) -> None:
         # Clear existing
         child = self.device_list.get_row_at_index(0)
@@ -1155,38 +1230,48 @@ class MainWindow(Adw.ApplicationWindow):
         persisted = self._device_store.load_devices()
         persisted_dict = {pd.get("address"): pd for pd in persisted}
 
-        seen_addrs = {d.address for d in devices}
+        clean_devices = []
+        seen_addrs = set()
 
-        # Apply aliases to discovered devices
         for d in devices:
-            if d.address in persisted_dict:
-                d.alias = persisted_dict[d.address].get("alias")
+            norm_addr = _normalize_ip(d.address)
+            d.address = norm_addr
+            if norm_addr in seen_addrs or "/" in norm_addr:
+                continue
+            seen_addrs.add(norm_addr)
+            if norm_addr in persisted_dict:
+                d.alias = persisted_dict[norm_addr].get("alias")
+            clean_devices.append(d)
 
         # Add persisted ones that aren't discovered
         for pd in persisted:
-            if pd.get("address") not in seen_addrs:
-                devices.append(
-                    DiscoveredDevice(
-                        name=pd.get("name", pd.get("address", "?")),
-                        address=pd.get("address", "?"),
-                        port=pd.get("port", 3629),
-                        source="persisted",
-                        alias=pd.get("alias"),
-                    )
+            addr = pd.get("address") or pd.get("ip") or ""
+            norm_addr = _normalize_ip(addr)
+            if not norm_addr or "/" in norm_addr or norm_addr in seen_addrs:
+                continue
+            seen_addrs.add(norm_addr)
+            clean_devices.append(
+                DiscoveredDevice(
+                    name=pd.get("name", norm_addr),
+                    address=norm_addr,
+                    port=pd.get("port", 3629),
+                    source="persisted",
+                    alias=pd.get("alias"),
                 )
+            )
 
-        for d in devices:
-            self.device_list.append(DeviceRow(d))
+        for d in clean_devices:
+            self.device_list.append(DeviceRow(d, on_delete=self._delete_device_row))
 
-        # Save discovered devices
+        # Save clean discovered devices
         self._device_store.save_devices(
             [
                 {"name": d.name, "address": d.address, "port": d.port, "alias": d.alias}
-                for d in devices
+                for d in clean_devices
             ]
         )
 
-        if devices:
+        if clean_devices:
             self.sidebar_stack.set_visible_child_name("list")
         else:
             self.sidebar_stack.set_visible_child_name("empty")
@@ -1194,45 +1279,79 @@ class MainWindow(Adw.ApplicationWindow):
     def _load_persisted_devices(self) -> None:
         """Load devices from disk on startup."""
         persisted = self._device_store.load_devices()
+        count = 0
         for pd in persisted:
+            addr = pd.get("address") or pd.get("ip") or ""
+            norm_addr = _normalize_ip(addr)
+            if not norm_addr or "/" in norm_addr:
+                continue
             dev = DiscoveredDevice(
-                name=pd.get("name", pd.get("address", "?")),
-                address=pd.get("address", "?"),
+                name=pd.get("name", norm_addr),
+                address=norm_addr,
                 port=pd.get("port", 3629),
                 source="persisted",
                 alias=pd.get("alias"),
             )
-            self.device_list.append(DeviceRow(dev))
-        if persisted:
+            self.device_list.append(DeviceRow(dev, on_delete=self._delete_device_row))
+            count += 1
+        if count > 0:
             self.sidebar_stack.set_visible_child_name("list")
 
     def on_add_manual(self, _button) -> None:
         dialog = Adw.AlertDialog(
             heading="Add projector",
-            body="Enter the projector's IP address",
+            body="Enter the projector's IP address (e.g. 169.254.30.43)",
         )
-        entry = Gtk.Entry(placeholder_text="192.168.1.50")
+        entry = Gtk.Entry(placeholder_text="169.254.30.43")
         dialog.set_extra_child(entry)
         dialog.add_response("cancel", "Cancel")
         dialog.add_response("add", "Add")
         dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED)
 
         def on_response(_d, response):
-            if response == "add" and entry.get_text().strip():
-                ip = entry.get_text().strip()
+            if response == "add":
+                raw_ip = entry.get_text().strip()
+                if not raw_ip:
+                    return
+                ip = _normalize_ip(raw_ip)
+                try:
+                    ipaddress.ip_address(ip)
+                except ValueError:
+                    self._toast(f"Invalid IP address: {raw_ip}")
+                    return
+
+                # Check if device already exists in list
+                existing_row = None
+                child = self.device_list.get_row_at_index(0)
+                idx = 0
+                while child is not None:
+                    if isinstance(child, DeviceRow) and child.device.address == ip:
+                        existing_row = child
+                        break
+                    idx += 1
+                    child = self.device_list.get_row_at_index(idx)
+
+                if existing_row:
+                    self.on_device_selected(self.device_list, existing_row)
+                    return
+
                 device = DiscoveredDevice(
                     name=ip,
                     address=ip,
                     port=3629,
                     source="manual",
                 )
-                self.device_list.append(DeviceRow(device))
+                new_row = DeviceRow(device, on_delete=self._delete_device_row)
+                self.device_list.append(new_row)
                 self.sidebar_stack.set_visible_child_name("list")
 
                 # Persist
                 existing = self._device_store.load_devices()
                 existing.append({"name": ip, "address": ip, "port": 3629})
                 self._device_store.save_devices(existing)
+
+                # Auto select and connect
+                self.on_device_selected(self.device_list, new_row)
 
         dialog.connect("response", on_response)
         dialog.present(self)
@@ -1268,19 +1387,17 @@ class MainWindow(Adw.ApplicationWindow):
             if error:
                 log.warning("Status query failed: %s", error)
                 self.power_row.set_subtitle("Unreachable")
-                self._toast(
-                    f"Connection failed: {error}", action_name="Retry", action_target="app.refresh"
-                )
+                self._show_error_dialog("Connection failed", str(error))
                 return
             if status.power:
                 pwr_val = status.power
                 if isinstance(pwr_val, bool):
                     pwr_active = pwr_val
-                elif "=" in pwr_val:
-                    pwr_val = pwr_val.split("=", 1)[1]
+                elif "=" in str(pwr_val):
+                    pwr_val = str(pwr_val).split("=", 1)[1]
                     pwr_active = pwr_val in ("01", "02")
                 else:
-                    pwr_active = False
+                    pwr_active = str(pwr_val) in ("01", "02")
 
                 # Disconnect briefly to avoid self-triggering
                 self.power_btn.handler_block_by_func(self.on_power_toggled)
@@ -1321,7 +1438,7 @@ class MainWindow(Adw.ApplicationWindow):
                     if s.value == src_val:
                         self.source_dropdown.set_selected(i)
                         break
-            if status.lamp_hours is not None:
+            if getattr(status, "lamp_hours", None) is not None:
                 self.lamp_row.set_subtitle(f"{status.lamp_hours} h")
             if getattr(status, "brightness", None) is not None:
                 if hasattr(self, "bright_scale"):
@@ -1333,6 +1450,36 @@ class MainWindow(Adw.ApplicationWindow):
                     self.contrast_scale.handler_block_by_func(self.on_contrast_changed)
                     self.contrast_scale.set_value(status.contrast)
                     self.contrast_scale.handler_unblock_by_func(self.on_contrast_changed)
+            
+            if getattr(status, "color_mode", None):
+                val = status.color_mode.split("=", 1)[1].strip() if "=" in status.color_mode else status.color_mode
+                from .protocol import ColorMode
+                for i, m in enumerate(ColorMode):
+                    if m.value == val:
+                        self.color_mode_row.handler_block_by_func(self.on_color_mode_changed)
+                        self.color_mode_row.set_selected(i)
+                        self.color_mode_row.handler_unblock_by_func(self.on_color_mode_changed)
+                        break
+
+            if getattr(status, "aspect", None):
+                val = status.aspect.split("=", 1)[1].strip() if "=" in status.aspect else status.aspect
+                from .protocol import AspectRatio
+                for i, m in enumerate(AspectRatio):
+                    if m.value == val:
+                        self.aspect_row.handler_block_by_func(self.on_aspect_changed)
+                        self.aspect_row.set_selected(i)
+                        self.aspect_row.handler_unblock_by_func(self.on_aspect_changed)
+                        break
+
+            if getattr(status, "luminance", None):
+                val = status.luminance.split("=", 1)[1].strip() if "=" in status.luminance else status.luminance
+                from .protocol import LuminanceMode
+                for i, m in enumerate(LuminanceMode):
+                    if m.value == val:
+                        self.luminance_row.handler_block_by_func(self.on_luminance_changed)
+                        self.luminance_row.set_selected(i)
+                        self.luminance_row.handler_unblock_by_func(self.on_luminance_changed)
+                        break
             if getattr(status, "sharpness", None) is not None:
                 if hasattr(self, "sharp_scale"):
                     self.sharp_scale.handler_block_by_func(self.on_sharpness_changed)
@@ -1424,6 +1571,33 @@ class MainWindow(Adw.ApplicationWindow):
         export_row.set_activatable_widget(export_btn)
         action_group.add(export_row)
 
+        forget_row = Adw.ActionRow(
+            title="Remove Projector", subtitle="Remove this device from saved projectors"
+        )
+        forget_btn = Gtk.Button(
+            label="Remove",
+            css_classes=["destructive-action"],
+            valign=Gtk.Align.CENTER,
+        )
+
+        def on_forget(_btn):
+            dialog.close()
+            target_addr = self.current_device.address if self.current_device else ""
+            if not target_addr:
+                return
+            idx = 0
+            child = self.device_list.get_row_at_index(idx)
+            while child is not None:
+                if isinstance(child, DeviceRow) and child.device.address == target_addr:
+                    self._delete_device_row(child)
+                    break
+                idx += 1
+                child = self.device_list.get_row_at_index(idx)
+
+        forget_btn.connect("clicked", on_forget)
+        forget_row.add_suffix(forget_btn)
+        action_group.add(forget_row)
+
         box.append(action_group)
 
         dialog.set_extra_child(box)
@@ -1480,7 +1654,7 @@ class MainWindow(Adw.ApplicationWindow):
                 f.write(csv_content)
             self._toast(f"Exported to {export_path}")
         except Exception as e:
-            self._toast(f"Export failed: {e}")
+            self._show_error_dialog("Export failed", str(e))
 
     def _on_console_send_clicked(self, _button, entry_row) -> None:
         if not self.current_device:
@@ -1494,7 +1668,7 @@ class MainWindow(Adw.ApplicationWindow):
         def done(result, error):
             if error:
                 self.console_output.set_label(f"> {cmd}\nError: {error}")
-                self._toast(f"Command failed: {error}")
+                self._show_error_dialog("Command failed", str(error))
             else:
                 self.console_output.set_label(f"> {cmd}\n< {result}")
                 self._toast("Command sent.")
@@ -1543,7 +1717,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Power command failed: {error}")
+                self._show_error_dialog("Power command failed", str(error))
             else:
                 self._toast(f"Power {'on' if state else 'off'}")
                 GLib.timeout_add_seconds(2, lambda: (self._refresh_status(), False)[1])
@@ -1562,7 +1736,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Mute command failed: {error}")
+                self._show_error_dialog("Mute command failed", str(error))
 
     def on_freeze_toggled(self, button: Gtk.ToggleButton) -> None:
         if not self.current_device:
@@ -1578,7 +1752,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Freeze command failed: {error}")
+                self._show_error_dialog("Freeze command failed", str(error))
 
     def on_remote_key(self, key_code: str) -> None:
         if not self.current_device:
@@ -1593,7 +1767,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Key command failed: {error}")
+                self._show_error_dialog("Key command failed", str(error))
 
     def _do_set_volume(self, value: float) -> None:
         if not self.current_device:
@@ -1608,7 +1782,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Volume command failed: {error}")
+                self._show_error_dialog("Volume command failed", str(error))
 
     def on_volume_changed(self, scale: Gtk.Scale) -> None:
         self._do_set_volume(scale.get_value())
@@ -1632,7 +1806,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Source switch failed: {error}")
+                self._show_error_dialog("Source switch failed", str(error))
             else:
                 self._toast(f"Switched to {source.name.replace('_', ' ').title()}")
 
@@ -1654,7 +1828,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Color mode switch failed: {error}")
+                self._show_error_dialog("Color mode switch failed", str(error))
             else:
                 self._toast(f"Switched to {mode.name.replace('_', ' ').title()}")
 
@@ -1674,7 +1848,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Aspect ratio switch failed: {error}")
+                self._show_error_dialog("Aspect ratio switch failed", str(error))
             else:
                 self._toast(f"Switched to {aspect.name.replace('_', ' ').title()}")
 
@@ -1694,7 +1868,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Luminance switch failed: {error}")
+                self._show_error_dialog("Luminance switch failed", str(error))
             else:
                 self._toast(f"Switched to {lum.name.replace('_', ' ').title()}")
 
@@ -1734,6 +1908,15 @@ class MainWindow(Adw.ApplicationWindow):
                     name=device.name or device.address,
                 )
 
+                # Attempt to switch projector source to LAN automatically
+                try:
+                    async def switch_lan():
+                        async with ProjectorClient(device.address, device.device_type) as client:
+                            await client.set_source("53")
+                    asyncio.run(switch_lan())
+                except Exception as ex:
+                    log.debug("Auto-switch source to LAN: %s", ex)
+
                 sink = RtpUdpSink()
                 self._caster = ScreenCaster(
                     sink=sink,
@@ -1747,14 +1930,16 @@ class MainWindow(Adw.ApplicationWindow):
                 asyncio.run(self._caster.start(target, virtual=is_virtual))
                 
                 # Check if casting actually started
-                if self._caster.is_casting():
+                if self._caster.is_casting:
                     GLib.idle_add(self._on_cast_started, device.name or device.address)
                 else:
                     GLib.idle_add(self._on_cast_failed, "Casting was cancelled or failed to start")
 
             except Exception as e:
-                log.error("Cast failed: %s", e)
-                GLib.idle_add(self._on_cast_failed, str(e))
+                import traceback
+                tb = traceback.format_exc()
+                log.error("Cast failed: %s\n%s", e, tb)
+                GLib.idle_add(self._on_cast_failed, f"{str(e)}\n\n{tb}")
 
         threading.Thread(target=start_cast, daemon=True).start()
 
@@ -1771,7 +1956,7 @@ class MainWindow(Adw.ApplicationWindow):
         if "cancel" in error_msg.lower() or "dismissed" in error_msg.lower():
             self._toast("Screen sharing cancelled")
         else:
-            self._toast(f"Casting failed: {error_msg}")
+            self._show_error_dialog("Casting Failed", error_msg)
 
     def _on_cast_stats(self, stats) -> None:
         """Called from GStreamer thread - marshal to UI."""
@@ -1796,7 +1981,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.content_stack.set_visible_child_name("control")
         self.cast_btn.set_sensitive(True)
         self.cast_btn.set_label("Start Casting")
-        self._toast(f"Stream ended: {error_msg}")
+        self._show_error_dialog("Stream ended", str(error_msg))
 
     def on_stop_cast_clicked(self, _button) -> None:
         if self._caster:
@@ -1824,7 +2009,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Failed to set brightness: {error}")
+                self._show_error_dialog("Failed to set brightness", str(error))
 
     def on_contrast_changed(self, scale: Gtk.Scale) -> None:
         if not self.current_device:
@@ -1840,7 +2025,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Failed to set contrast: {error}")
+                self._show_error_dialog("Failed to set contrast", str(error))
 
     def on_sharpness_changed(self, scale: Gtk.Scale) -> None:
         if not self.current_device:
@@ -1856,7 +2041,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Failed to set sharpness: {error}")
+                self._show_error_dialog("Failed to set sharpness", str(error))
 
     def on_keystone_changed(self, scale: Gtk.Scale, axis) -> None:
         if not self.current_device:
@@ -1872,7 +2057,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Failed to set {axis.name} keystone: {error}")
+                self._show_error_dialog("Failed to set axis.name keystone", str(error))
 
     # Macros Handler
 
@@ -1937,7 +2122,7 @@ class MainWindow(Adw.ApplicationWindow):
         @_run_async(cmd())
         def done(_result, error):
             if error:
-                self._toast(f"Macro failed: {error}")
+                self._show_error_dialog("Macro failed", str(error))
             else:
                 self._toast("Macro completed")
 
@@ -1998,22 +2183,51 @@ class MainWindow(Adw.ApplicationWindow):
         self.content_stack.set_visible_child_name("casting")
         self.casting_status.set_label(f"Pattern: {pattern_name}")
         self._set_casting_state(True)
-        
-        def on_stats(fps, bitrate):
-            GLib.idle_add(self._update_stats, fps, bitrate)
-            
-        def on_error(msg):
-            GLib.idle_add(self._handle_cast_error, msg)
-            
-        self._caster = start_test_pattern(
-            host=self.current_device.address,
-            pattern_name=pattern_name,
-            port=self._config.default_port,
-            on_stats=on_stats,
-            on_error=on_error,
-        )
+
+        def run_pattern():
+            try:
+                # Attempt to switch projector source to LAN automatically
+                try:
+                    async def switch_lan():
+                        async with ProjectorClient(self.current_device.address, self.current_device.device_type) as client:
+                            await client.set_source("53")
+                    asyncio.run(switch_lan())
+                except Exception as ex:
+                    log.debug("Auto-switch source to LAN: %s", ex)
+
+                self._caster = start_test_pattern(
+                    host=self.current_device.address,
+                    pattern_name=pattern_name,
+                    port=getattr(self.current_device, "stream_port", 5004),
+                    on_stats=self._on_cast_stats,
+                    on_error=self._on_cast_error,
+                )
+            except Exception as e:
+                log.error("Pattern start error: %s", e)
+                GLib.idle_add(self._on_cast_failed, str(e))
+
+        threading.Thread(target=run_pattern, daemon=True).start()
 
     # Toast helper
+
+
+    def _show_error_dialog(self, title: str, error_msg: str) -> None:
+        dialog = Adw.MessageDialog(
+            heading=title,
+            body=error_msg,
+            transient_for=self,
+        )
+        dialog.add_response("close", "Close")
+        dialog.add_response("copy", "Copy Error")
+        dialog.set_response_appearance("close", Adw.ResponseAppearance.SUGGESTED)
+
+        def on_response(dlg, response):
+            if response == "copy":
+                cb = self.get_clipboard()
+                cb.set(error_msg)
+                self._toast("Error copied to clipboard")
+        dialog.connect("response", on_response)
+        dialog.present()
 
     def _toast(self, message: str, action_name: str = None, action_target: str = None) -> None:
         toast = Adw.Toast(title=message, timeout=4)

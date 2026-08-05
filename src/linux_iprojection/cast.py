@@ -19,7 +19,7 @@ import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import gi
 
@@ -122,28 +122,38 @@ def _probe_encoder(preset: EncoderPreset = EncoderPreset.AUTO, quality: str = "b
 
     if quality == "low_latency":
         x264_params = "bitrate=2000 speed-preset=ultrafast tune=zerolatency key-int-max=15"
-        vaapi_params = "rate-control=cbr bitrate=2000 keyframe-period=15"
-        nvenc_params = "bitrate=2000000 preset-level=UltraFastPreset"
+        vaapi_params = "rate-control=cbr bitrate=2000"
+        nvenc_params = "bitrate=2000 rc-mode=cbr zerolatency=true"
+        openh264_params = "bitrate=2000000"
     elif quality == "high_quality":
         x264_params = "bitrate=8000 speed-preset=fast tune=zerolatency key-int-max=60"
-        vaapi_params = "rate-control=cbr bitrate=8000 keyframe-period=60"
-        nvenc_params = "bitrate=8000000 preset-level=HighQualityPreset"
+        vaapi_params = "rate-control=cbr bitrate=8000"
+        nvenc_params = "bitrate=8000 rc-mode=cbr"
+        openh264_params = "bitrate=8000000"
     else:  # balanced
         x264_params = "bitrate=4000 speed-preset=veryfast tune=zerolatency key-int-max=30"
-        vaapi_params = "rate-control=cbr bitrate=4000 keyframe-period=30"
-        nvenc_params = "bitrate=4000000 preset-level=FastPreset"
+        vaapi_params = "rate-control=cbr bitrate=4000"
+        nvenc_params = "bitrate=4000 rc-mode=cbr zerolatency=true"
+        openh264_params = "bitrate=4000000"
 
     candidates = [
+        # VA-API (Intel / AMD GPU)
+        (EncoderPreset.VAAPI, "vah264enc", f"vah264enc {vaapi_params}"),
         (EncoderPreset.VAAPI, "vaapih264enc", f"vaapih264enc {vaapi_params}"),
-        (EncoderPreset.NVENC, "nvv4l2h264enc", f"nvv4l2h264enc {nvenc_params}"),
+        # NVIDIA NVENC
+        (EncoderPreset.NVENC, "nvh264enc", f"nvh264enc {nvenc_params}"),
+        (EncoderPreset.NVENC, "nvautogpuh264enc", f"nvautogpuh264enc {nvenc_params}"),
+        (EncoderPreset.NVENC, "nvv4l2h264enc", f"nvv4l2h264enc bitrate={int(vaapi_params.split('bitrate=')[1])*1000}"),
+        # Software encoders
         (EncoderPreset.SOFTWARE, "x264enc", f"x264enc {x264_params}"),
+        (EncoderPreset.SOFTWARE, "openh264enc", f"openh264enc {openh264_params}"),
     ]
 
     for enc_preset, element_name, element_str in candidates:
         if preset not in (EncoderPreset.AUTO, enc_preset):
             continue
         if registry.lookup_feature(element_name):
-            log.info("Encoder selected: %s", element_name)
+            log.info("Encoder selected: %s (%s)", element_name, enc_preset.name)
             return element_str
 
     log.warning("No HW encoder found - using x264enc (software)")
@@ -187,7 +197,7 @@ async def _request_portal_stream(virtual: bool = False) -> Optional[int]:
         None,
     )
 
-    token = f"linux-iprojection_{os.getpid()}"
+    token = f"linux_iprojection_{os.getpid()}"
     sender = bus.get_unique_name().replace(".", "_")[1:]
 
     async def call_and_wait(method: str, args, handle_token: str) -> dict:
@@ -439,7 +449,6 @@ class ScreenCaster:
             f"videotestsrc pattern={pattern_id} is-live=true ! "
             "video/x-raw,width=1920,height=1080,framerate=30/1 ! "
             "videoconvert ! videoscale ! "
-            "video/x-raw,format=I420 ! "
             f"{encoder} ! h264parse ! "
             f"{video_sink}"
         )
@@ -520,7 +529,6 @@ class ScreenCaster:
         video_branch = (
             f"{video_src} ! "
             "videoconvert ! videoscale ! videorate ! "
-            "video/x-raw,format=I420 ! "
             f"{encoder} ! h264parse ! "
             f"{video_sink}"
         )
@@ -589,3 +597,17 @@ class ScreenCaster:
         if self.on_stats:
             self.on_stats(stats)
         return True
+
+
+def start_test_pattern(
+    host: str,
+    pattern_name: str = "smpte",
+    port: int = 5004,
+    on_stats: Any = None,
+    on_error: Any = None,
+) -> ScreenCaster:
+    """Convenience helper to create and start a ScreenCaster with a test pattern."""
+    target = CastTarget(host=host, port=port, name="Test Pattern")
+    caster = ScreenCaster(sink=RtpUdpSink(), on_stats=on_stats, on_error=on_error)
+    asyncio.run(caster.start_test_pattern(target, pattern=pattern_name.lower()))
+    return caster

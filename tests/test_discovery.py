@@ -42,7 +42,7 @@ def test_discovered_device_defaults():
     )
     assert dev.stream_port == 5004
     assert dev.audio_port == 5006
-    assert dev.device_type == "unknown"
+    assert dev.device_type == "projector"
     assert dev.capabilities == []
 
 

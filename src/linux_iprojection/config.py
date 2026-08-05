@@ -116,23 +116,62 @@ class DeviceStore:
         }
         self.save()
 
+    def remove_device(self, key_or_address: str) -> None:
+        """Remove a device by its name, key, or address."""
+        if key_or_address in self.devices:
+            del self.devices[key_or_address]
+            self.save()
+            return
+        to_delete = [
+            k
+            for k, v in self.devices.items()
+            if v.get("address") == key_or_address
+            or v.get("ip") == key_or_address
+            or v.get("name") == key_or_address
+            or k == key_or_address
+        ]
+        for k in to_delete:
+            del self.devices[k]
+        self.save()
+
+    def delete_device(self, key_or_address: str) -> None:
+        """Alias for remove_device."""
+        self.remove_device(key_or_address)
+
+    def clear_devices(self) -> None:
+        """Clear all stored devices."""
+        self.devices = {}
+        self.save()
+
     def get_device(self, name: str) -> Optional[dict]:
         return self.devices.get(name)
 
     def get_all_devices(self) -> List[dict]:
-        return list(self.devices.values())
+        # Filter out invalid entries (e.g. subnets or junk)
+        valid = []
+        for d in self.devices.values():
+            addr = d.get("address") or d.get("ip") or ""
+            if not addr or "/" in str(addr):
+                continue
+            valid.append(d)
+        return valid
 
     def load_devices(self) -> List[dict]:
         """Load devices as a plain list of dicts (for app.py compatibility)."""
+        self.devices = self._load()
         return self.get_all_devices()
 
     def save_devices(self, devices_list: List[dict]) -> None:
         """Save a list of device dicts, keyed by address."""
         self.devices = {}
         for d in devices_list:
-            key = d.get("address", d.get("ip", d.get("name", "unknown")))
+            addr = d.get("address") or d.get("ip") or d.get("name", "unknown")
+            if not addr or "/" in str(addr):
+                continue
+            key = str(addr).strip()
             self.devices[key] = d
         self.save()
+
 
 
 class MacroStore:

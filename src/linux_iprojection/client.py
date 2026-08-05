@@ -64,20 +64,24 @@ def wake_on_lan(ip: str) -> bool:
 class ProjectorClient:
     """Unified facade for ESC/VP.net and PJLink clients."""
 
-    def __init__(self, host: str, device_type: str = "projector"):
+    def __init__(self, host: str, device_type: str = "projector", port: int | None = None):
         self.host = host
         self.device_type = device_type
+        self.port = port
         if device_type == "pjlink_projector":
-            self._client = PJLinkController(host)
+            self._client = PJLinkController(host, port=port or 4352)
         else:
-            self._client = EscVpNetClient(host)
+            self._client = EscVpNetClient(host, port=port or 3629)
 
     async def __aenter__(self):
         await self._client.connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._client.disconnect()
+        if hasattr(self._client, "disconnect"):
+            await self._client.disconnect()
+        elif hasattr(self._client, "close"):
+            await self._client.close()
 
     async def power_on(self):
         await self._client.power_on()
@@ -211,7 +215,25 @@ class ProjectorClient:
                 s.power = raw.power
                 s.source = raw.source
                 s.lamp_hours = raw.lamp_hours
-                s.errors = raw.errors
+                s.errors = getattr(raw, "errors", getattr(raw, "error", None))
+                if getattr(raw, "muted", None) is not None:
+                    s.mute = raw.muted
+                if getattr(raw, "brightness", None) is not None:
+                    s.brightness = raw.brightness
+                if getattr(raw, "contrast", None) is not None:
+                    s.contrast = raw.contrast
+                if getattr(raw, "sharpness", None) is not None:
+                    s.sharpness = raw.sharpness
+                if getattr(raw, "color_temp", None) is not None:
+                    s.color_temp = raw.color_temp
+                if getattr(raw, "filter_hours", None) is not None:
+                    s.filter_hours = raw.filter_hours
+                if getattr(raw, "projector_name", None) is not None:
+                    s.projector_name = raw.projector_name
+                if getattr(raw, "signal_present", None) is not None:
+                    s.signal_present = raw.signal_present
+                if getattr(raw, "errors_decoded", None) is not None:
+                    s.errors_decoded = raw.errors_decoded
             else:
                 if hasattr(self._client, "get_power"):
                     s.power = await self._client.get_power()
@@ -223,11 +245,25 @@ class ProjectorClient:
                     s.errors = await self._client.get_error()
 
             if hasattr(self._client, "get_mute"):
-                s.mute = await self._client.get_mute()
-            if hasattr(self._client, "get_volume"):
-                s.volume = await self._client.get_volume()
+                try:
+                    s.mute = await self._client.get_mute()
+                except Exception:
+                    pass
+            if hasattr(self._client, "query_volume"):
+                try:
+                    s.volume = await self._client.query_volume()
+                except Exception:
+                    pass
+            elif hasattr(self._client, "get_volume"):
+                try:
+                    s.volume = await self._client.get_volume()
+                except Exception:
+                    pass
             if hasattr(self._client, "get_serial"):
-                s.serial = await self._client.get_serial()
+                try:
+                    s.serial = await self._client.get_serial()
+                except Exception:
+                    pass
 
             # Extended enterprise fields
             try:
