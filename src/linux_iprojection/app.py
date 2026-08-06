@@ -1907,7 +1907,7 @@ class MainWindow(Adw.ApplicationWindow):
                 if device.device_type in ("projector", "pjlink_projector"):
                     def _show_unsupported_dialog():
                         dialog = Gtk.MessageDialog(
-                            transient_for=self.window,
+                            transient_for=self,
                             modal=True,
                             message_type=Gtk.MessageType.WARNING,
                             text="Proprietary Protocol Unsupported",
@@ -2365,9 +2365,10 @@ def main() -> int:
             if "libadwaita.css" in message or "gtk-application-prefer-dark-theme" in message or "libadwaita-tweaks.css" in message:
                 return GLib.LogWriterOutput.HANDLED
         
-        if len(args) == 2:
-            return GLib.log_writer_default(log_level, fields, args[0], user_data)
-        return GLib.log_writer_default(log_level, fields, user_data)
+        try:
+            return GLib.log_writer_default(log_level, fields, user_data)
+        except TypeError:
+            return GLib.log_writer_default(log_level, fields)
         
     try:
         GLib.log_set_writer_func(log_writer, None)
