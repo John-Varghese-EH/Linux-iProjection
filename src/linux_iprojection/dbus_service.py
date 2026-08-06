@@ -10,6 +10,8 @@ projectors without launching the GUI.
 
 import asyncio
 import logging
+import threading
+from dataclasses import asdict
 
 import gi
 
@@ -17,6 +19,7 @@ gi.require_version('Gio', '2.0')
 gi.require_version('GLib', '2.0')
 from gi.repository import Gio, GLib  # noqa: E402
 
+from .cast import CastTarget, RtpUdpSink, ScreenCaster  # noqa: E402
 from .client import ProjectorClient  # noqa: E402
 from .config import MacroStore  # noqa: E402
 from .discovery import discover_all  # noqa: E402
@@ -83,6 +86,8 @@ class ProjectorDBusService:
         self.owner_id = None
 
         self._is_casting = False
+        self._caster: ScreenCaster | None = None
+        self._cast_thread: threading.Thread | None = None
 
     def start(self):
         self.owner_id = Gio.bus_own_name(
@@ -122,7 +127,7 @@ class ProjectorDBusService:
         try:
             if method_name == "Discover":
                 devices = asyncio.run(discover_all(timeout=3))
-                result = {dev.ip: dev.name for dev in devices}
+                result = {dev.address: dev.name for dev in devices}
                 invocation.return_value(GLib.Variant("(a{ss})", (result,)))
 
             elif method_name == "PowerOn":
@@ -142,7 +147,8 @@ class ProjectorDBusService:
 
             elif method_name == "GetStatus":
                 ip = parameters.unpack()[0]
-                status_dict = asyncio.run(self._get_status(ip))
+                status = asyncio.run(self._get_status(ip))
+                status_dict = asdict(status) if hasattr(status, '__dataclass_fields__') else (status if isinstance(status, dict) else {})
                 variant_dict = {
                     k: GLib.Variant(self._get_variant_type(v), v)
                     for k, v in status_dict.items() if v is not None
@@ -151,14 +157,37 @@ class ProjectorDBusService:
 
             elif method_name == "StartCast":
                 ip = parameters.unpack()[0]
-                logger.info(f"StartCast placeholder called for {ip}")
-                self._is_casting = True
-                invocation.return_value(GLib.Variant("(b)", (False,)))
+                try:
+                    target = CastTarget(host=ip, port=5004, audio_port=5006)
+                    self._caster = ScreenCaster(sink=RtpUdpSink())
+                    
+                    def run_cast():
+                        try:
+                            import asyncio
+                            result = asyncio.run(self._caster.start(target))
+                            self._is_casting = result
+                        except Exception as e:
+                            logger.error(f"Cast failed: {e}")
+                            self._is_casting = False
+                    
+                    self._cast_thread = threading.Thread(target=run_cast, daemon=True)
+                    self._cast_thread.start()
+                    self._cast_thread.join(timeout=30)  # Wait for portal dialog
+                    invocation.return_value(GLib.Variant("(b)", (self._is_casting,)))
+                except Exception as e:
+                    logger.error(f"StartCast error: {e}")
+                    invocation.return_value(GLib.Variant("(b)", (False,)))
 
             elif method_name == "StopCast":
-                logger.info("StopCast placeholder called")
-                self._is_casting = False
-                invocation.return_value(GLib.Variant("(b)", (False,)))
+                try:
+                    if self._caster:
+                        self._caster.stop()
+                        self._caster = None
+                    self._is_casting = False
+                    invocation.return_value(GLib.Variant("(b)", (True,)))
+                except Exception as e:
+                    logger.error(f"StopCast error: {e}")
+                    invocation.return_value(GLib.Variant("(b)", (False,)))
 
             elif method_name == "RunMacro":
                 name, ip = parameters.unpack()

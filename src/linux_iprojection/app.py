@@ -1391,13 +1391,10 @@ class MainWindow(Adw.ApplicationWindow):
                 return
             if status.power:
                 pwr_val = status.power
-                if isinstance(pwr_val, bool):
-                    pwr_active = pwr_val
-                elif "=" in str(pwr_val):
-                    pwr_val = str(pwr_val).split("=", 1)[1]
-                    pwr_active = pwr_val in ("01", "02")
-                else:
-                    pwr_active = str(pwr_val) in ("01", "02")
+                if "=" in pwr_val:
+                    pwr_val = pwr_val.split("=", 1)[1]
+                # "01" = On, "02" = Warming up (treat as active)
+                pwr_active = pwr_val in ("01", "02", "1")
 
                 # Disconnect briefly to avoid self-triggering
                 self.power_btn.handler_block_by_func(self.on_power_toggled)
@@ -1411,13 +1408,12 @@ class MainWindow(Adw.ApplicationWindow):
                     "03": "Cooling down",
                     "04": "Standby",
                     "05": "Abnormal standby",
+                    "0": "Standby",
+                    "1": "On",
+                    "2": "Cooling",
+                    "3": "Warming",
                 }
-                subtitle = (
-                    power_names.get(str(pwr_val), str(pwr_val))
-                    if not isinstance(pwr_val, bool)
-                    else ("On" if pwr_val else "Off")
-                )
-                self.power_row.set_subtitle(subtitle)
+                self.power_row.set_subtitle(power_names.get(pwr_val, pwr_val))
 
             if status.mute is not None:
                 self.mute_btn.handler_block_by_func(self.on_mute_toggled)
@@ -1908,7 +1904,42 @@ class MainWindow(Adw.ApplicationWindow):
                     name=device.name or device.address,
                 )
 
-                # Attempt to switch projector source to LAN automatically
+                if device.device_type in ("projector", "pjlink_projector"):
+                    def _show_unsupported_dialog():
+                        dialog = Gtk.MessageDialog(
+                            transient_for=self.window,
+                            modal=True,
+                            message_type=Gtk.MessageType.WARNING,
+                            text="Proprietary Protocol Unsupported",
+                        )
+                        dialog.format_secondary_text(
+                            "Native Epson LAN screen mirroring uses a proprietary, encrypted protocol (EasyMP) that is not supported on Linux.\n\n"
+                            "This casting feature uses standard RTP/H.264 (EShare compatible). Casting to this native Epson projector will likely fail and drop the connection. Are you sure you want to proceed?"
+                        )
+                        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+                        dialog.add_button("Cast Anyway", Gtk.ResponseType.YES)
+                        
+                        def on_response(dlg, response_id):
+                            dlg.destroy()
+                            if response_id == Gtk.ResponseType.YES:
+                                threading.Thread(target=_do_cast_internal, args=(target,), daemon=True).start()
+                            else:
+                                self._on_cast_failed("Casting aborted.")
+                        dialog.connect("response", on_response)
+                        dialog.present()
+                    GLib.idle_add(_show_unsupported_dialog)
+                    return
+                else:
+                    _do_cast_internal(target)
+                    
+            except Exception as e:
+                import traceback
+                tb = traceback.format_exc()
+                log.error("Cast failed: %s\n%s", e, tb)
+                GLib.idle_add(self._on_cast_failed, f"{str(e)}\n\n{tb}")
+
+        def _do_cast_internal(target):
+            try:
                 try:
                     async def switch_lan():
                         async with ProjectorClient(device.address, device.device_type) as client:
@@ -2310,17 +2341,32 @@ def main() -> int:
     
     from gi.repository import GLib
 
-    def log_writer(log_level, fields, user_data):
+    def log_writer(log_level, fields, *args):
+        # Depending on PyGObject version, args may contain (length, user_data) or just (user_data,)
+        user_data = args[-1] if args else None
+        
         message = ""
         domain = ""
-        for k, v in fields.items():
+        
+        if hasattr(fields, "items"):
+            iterator = fields.items()
+        else:
+            iterator = ((getattr(f, "key", ""), getattr(f, "value", "")) for f in fields)
+            
+        for k, v in iterator:
+            if isinstance(k, bytes):
+                k = k.decode("utf-8", errors="ignore")
             if k == "MESSAGE":
-                message = v.decode("utf-8", errors="ignore")
+                message = v.decode("utf-8", errors="ignore") if isinstance(v, bytes) else str(v)
             elif k == "GLIB_DOMAIN":
-                domain = v.decode("utf-8", errors="ignore")
+                domain = v.decode("utf-8", errors="ignore") if isinstance(v, bytes) else str(v)
+                
         if domain in ("Gtk", "Adwaita") and log_level == GLib.LogLevelFlags.LEVEL_WARNING:
             if "libadwaita.css" in message or "gtk-application-prefer-dark-theme" in message or "libadwaita-tweaks.css" in message:
                 return GLib.LogWriterOutput.HANDLED
+        
+        if len(args) == 2:
+            return GLib.log_writer_default(log_level, fields, args[0], user_data)
         return GLib.log_writer_default(log_level, fields, user_data)
         
     try:

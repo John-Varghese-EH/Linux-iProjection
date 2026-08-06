@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class UnifiedStatus:
-    power: bool = False
+    power: str = ""
     source: str = ""
     lamp_hours: int = 0
     errors: str = ""
@@ -35,29 +35,66 @@ class UnifiedStatus:
     input_resolution: str = ""
     errors_decoded: dict | None = None
 
+    @property
+    def power_is_on(self) -> bool:
+        """True if the projector is powered on."""
+        return self.power in ("01", "1", "ON", True)
+
 
 def wake_on_lan(ip: str) -> bool:
-    """Attempt to send a WoL magic packet to the given IP by resolving its MAC via ARP."""
+    """Attempt to send a WoL magic packet to the given IP by resolving its MAC."""
     try:
         # Ping to ensure ARP table is populated
-        subprocess.run(["ping", "-c", "1", "-W", "1", ip], stdout=subprocess.DEVNULL)
-        arp_out = subprocess.run(["arp", "-n", ip], capture_output=True, text=True)
-        match = re.search(r"([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})", arp_out.stdout)
-        if not match:
+        subprocess.run(["ping", "-c", "1", "-W", "1", ip], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        mac = None
+        
+        # Strategy 1: ip neighbor (modern Linux)
+        try:
+            result = subprocess.run(["ip", "neighbor", "show", ip], capture_output=True, text=True)
+            match = re.search(r"([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})", result.stdout)
+            if match:
+                mac = match.group(0)
+        except FileNotFoundError:
+            pass
+        
+        # Strategy 2: arp -n (legacy)
+        if not mac:
+            try:
+                result = subprocess.run(["arp", "-n", ip], capture_output=True, text=True)
+                match = re.search(r"([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})", result.stdout)
+                if match:
+                    mac = match.group(0)
+            except FileNotFoundError:
+                pass
+        
+        # Strategy 3: /proc/net/arp (direct)
+        if not mac:
+            try:
+                with open("/proc/net/arp", "r") as f:
+                    for line in f.readlines()[1:]:
+                        parts = line.split()
+                        if len(parts) >= 4 and parts[0] == ip and parts[3] != "00:00:00:00:00:00":
+                            mac = parts[3]
+                            break
+            except OSError:
+                pass
+        
+        if not mac:
+            log.warning("Could not resolve MAC address for %s", ip)
             return False
 
-        mac = match.group(0).replace("-", ":")
+        mac = mac.replace("-", ":")
         mac_bytes = bytes.fromhex(mac.replace(":", ""))
         magic_packet = b"\xff" * 6 + mac_bytes * 16
 
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            # Broadcast to 255.255.255.255 on port 9
             s.sendto(magic_packet, ("255.255.255.255", 9))
-        log.info(f"Sent WoL magic packet to {mac} for {ip}")
+        log.info("Sent WoL magic packet to %s for %s", mac, ip)
         return True
     except Exception as e:
-        log.error(f"WoL failed for {ip}: {e}")
+        log.error("WoL failed for %s: %s", ip, e)
         return False
 
 

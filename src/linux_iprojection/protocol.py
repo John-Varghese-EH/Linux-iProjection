@@ -151,6 +151,7 @@ class EscVpNetClient:
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._keepalive_task: asyncio.Task | None = None
+        self._lock = asyncio.Lock()
 
     async def _attempt_connect(self) -> None:
         try:
@@ -198,13 +199,16 @@ class EscVpNetClient:
                 await asyncio.sleep(10)
                 if self._writer is not None:
                     # Send PWR? to keep the connection alive (per protocol notes)
-                    self._writer.write(b"PWR?" + CMD_TERMINATOR)
-                    await self._writer.drain()
-                    await self._read_until_prompt()
+                    async with self._lock:
+                        self._writer.write(b"PWR?" + CMD_TERMINATOR)
+                        await self._writer.drain()
+                        await self._read_until_prompt()
         except asyncio.CancelledError:
             pass
         except Exception as e:
             log.debug(f"Keepalive failed: {e}")
+            self._writer = None
+            self._reader = None
 
     def start_keepalive(self):
         if self._keepalive_task is None:
@@ -252,9 +256,10 @@ class EscVpNetClient:
         """
         if self._writer is None:
             raise ProjectorError("Not connected - use `async with EscVpNetClient(...)`")
-        self._writer.write(command.encode("ascii") + CMD_TERMINATOR)
-        await self._writer.drain()
-        reply = await self._read_until_prompt()
+        async with self._lock:
+            self._writer.write(command.encode("ascii") + CMD_TERMINATOR)
+            await self._writer.drain()
+            reply = await self._read_until_prompt()
         text = reply.decode("ascii", errors="replace").strip()
         if text.startswith("ERR"):
             raise ProjectorError(f"Projector rejected '{command}': {text}")
@@ -461,7 +466,7 @@ class EscVpNetClient:
         except ProjectorError:
             pass
         try:
-            status.aspect = await self.get_aspect()
+            status.aspect = await self.get_aspect_ratio()
         except ProjectorError:
             pass
         try:

@@ -1,7 +1,7 @@
 # linux-iprojection - Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
 [project]
 name = "linux-iprojection"
-version = "1.2.0"
+version = "1.2.1"
 description = "Native Linux control & casting app for Epson projectors (ESC/VP.net + EShare)"
 readme = "README.md"
 license = {text = "AGPL-3.0-or-later"}

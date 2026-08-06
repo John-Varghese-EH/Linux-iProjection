@@ -30,6 +30,8 @@ from gi.repository import Gio, GLib, Gst  # noqa: E402
 
 log = logging.getLogger(__name__)
 
+_portal_token_counter = 0
+
 # Lazy init - don't call Gst.init at import time
 _gst_initialized = False
 
@@ -125,16 +127,19 @@ def _probe_encoder(preset: EncoderPreset = EncoderPreset.AUTO, quality: str = "b
         vaapi_params = "rate-control=cbr bitrate=2000"
         nvenc_params = "bitrate=2000 rc-mode=cbr zerolatency=true"
         openh264_params = "bitrate=2000000"
+        base_bitrate = 2000
     elif quality == "high_quality":
         x264_params = "bitrate=8000 speed-preset=fast tune=zerolatency key-int-max=60"
         vaapi_params = "rate-control=cbr bitrate=8000"
         nvenc_params = "bitrate=8000 rc-mode=cbr"
         openh264_params = "bitrate=8000000"
+        base_bitrate = 8000
     else:  # balanced
         x264_params = "bitrate=4000 speed-preset=veryfast tune=zerolatency key-int-max=30"
         vaapi_params = "rate-control=cbr bitrate=4000"
         nvenc_params = "bitrate=4000 rc-mode=cbr zerolatency=true"
         openh264_params = "bitrate=4000000"
+        base_bitrate = 4000
 
     candidates = [
         # VA-API (Intel / AMD GPU)
@@ -143,7 +148,7 @@ def _probe_encoder(preset: EncoderPreset = EncoderPreset.AUTO, quality: str = "b
         # NVIDIA NVENC
         (EncoderPreset.NVENC, "nvh264enc", f"nvh264enc {nvenc_params}"),
         (EncoderPreset.NVENC, "nvautogpuh264enc", f"nvautogpuh264enc {nvenc_params}"),
-        (EncoderPreset.NVENC, "nvv4l2h264enc", f"nvv4l2h264enc bitrate={int(vaapi_params.split('bitrate=')[1])*1000}"),
+        (EncoderPreset.NVENC, "nvv4l2h264enc", f"nvv4l2h264enc bitrate={base_bitrate * 1000}"),
         # Software encoders
         (EncoderPreset.SOFTWARE, "x264enc", f"x264enc {x264_params}"),
         (EncoderPreset.SOFTWARE, "openh264enc", f"openh264enc {openh264_params}"),
@@ -197,7 +202,9 @@ async def _request_portal_stream(virtual: bool = False) -> Optional[int]:
         None,
     )
 
-    token = f"linux_iprojection_{os.getpid()}"
+    global _portal_token_counter
+    _portal_token_counter += 1
+    token = f"linux_iprojection_{os.getpid()}_{_portal_token_counter}"
     sender = bus.get_unique_name().replace(".", "_")[1:]
 
     async def call_and_wait(method: str, args, handle_token: str) -> dict:
@@ -236,7 +243,7 @@ async def _request_portal_stream(virtual: bool = False) -> Optional[int]:
         handler_id = request_proxy.connect("g-signal", on_signal)
 
         try:
-            portal_proxy.call_sync(method, args, Gio.DBusCallFlags.NONE, 30000, None)
+            await loop.run_in_executor(None, lambda: portal_proxy.call_sync(method, args, Gio.DBusCallFlags.NONE, 30000, None))
             return await asyncio.wait_for(future, timeout=120)
         finally:
             request_proxy.disconnect(handler_id)
@@ -348,6 +355,8 @@ class ScreenCaster:
         self._stats_timeout_id: int | None = None
         self._bus_watch_id = None
         self._active_pattern: str | None = None
+        self._error_count: int = 0
+        self._max_retries: int = 3
 
     @property
     def active_pattern(self) -> str | None:
@@ -412,6 +421,7 @@ class ScreenCaster:
                 self.on_error("GStreamer failed to start")
             return False
 
+        self._error_count = 0
         self._target = target
         self._is_casting = True
         self._active_pattern = None
@@ -473,6 +483,7 @@ class ScreenCaster:
                 self.on_error("GStreamer failed to start test pattern")
             return False
 
+        self._error_count = 0
         self._target = target
         self._is_casting = True
         self._active_pattern = pattern
@@ -539,8 +550,8 @@ class ScreenCaster:
             if audio_enc and audio_pay:
                 audio_branch = (
                     "pipewiresrc do-timestamp=true ! "
-                    "audio/x-raw,format=F32LE,channels=2,rate=48000 ! "
                     "audioconvert ! audioresample ! "
+                    "audio/x-raw,format=S16LE,channels=2,rate=48000 ! "
                     f"{audio_enc} ! {audio_pay} ! "
                     f"udpsink host={target.host} port={target.audio_port} sync=false"
                 )
@@ -552,6 +563,18 @@ class ScreenCaster:
         t = message.type
         if t == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
+            
+            self._error_count += 1
+            error_msg = err.message.lower()
+            if self._error_count <= self._max_retries and any(kw in error_msg for kw in ("timeout", "resource", "temporarily")):
+                log.warning("Transient GStreamer error (%d/%d): %s\n%s", self._error_count, self._max_retries, err.message, debug)
+                log.info("Attempting to restart pipeline...")
+                if self._pipeline:
+                    self._pipeline.set_state(Gst.State.NULL)
+                    ret = self._pipeline.set_state(Gst.State.PLAYING)
+                    if ret != Gst.StateChangeReturn.FAILURE:
+                        return True
+            
             log.error("GStreamer error: %s\n%s", err.message, debug)
             self.stop()
             if self.on_error:
