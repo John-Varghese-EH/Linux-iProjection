@@ -62,6 +62,9 @@ class Source(str, Enum):
     LAN = "53"  # LAN/Network
     WIRELESS_HDMI = "56"  # Wireless HDMI (e.g. EB-1430Wi)
     HDMI2 = "A0"  # HDMI 2
+    HDBASET = "80"  # HDBaseT (commercial models)
+    IPROJECTION_1 = "F1"  # iProjection virtual source 1
+    IPROJECTION_2 = "F2"  # iProjection virtual source 2
 
 
 class ColorMode(str, Enum):
@@ -106,6 +109,47 @@ class ErrorCategory(str, Enum):
     OTHER = "other"
 
 
+class RemoteKey(str, Enum):
+    """Remote control key simulation codes for the KEY command.
+    
+    Discovered from Epson ESC/VP21 remote control protocol.
+    Usage: client.send_key(RemoteKey.MENU)
+    """
+    POWER = "01"
+    MENU = "35"
+    ENTER = "36"
+    ESCAPE = "37"
+    UP = "58"
+    DOWN = "59"
+    LEFT = "5A"
+    RIGHT = "5B"
+    PAGE_UP = "45"
+    PAGE_DOWN = "46"
+    A_V_MUTE = "47"
+    FREEZE = "44"
+    VOLUME_UP = "56"
+    VOLUME_DOWN = "57"
+    HOME = "48"
+    SOURCE_SEARCH = "49"
+    AUTO = "4A"
+    ASPECT = "4B"
+    COLOR_MODE = "4C"
+    HELP = "50"
+    SPLIT = "4F"
+    USER1 = "52"
+    USER2 = "53"
+    NUM_0 = "60"
+    NUM_1 = "61"
+    NUM_2 = "62"
+    NUM_3 = "63"
+    NUM_4 = "64"
+    NUM_5 = "65"
+    NUM_6 = "66"
+    NUM_7 = "67"
+    NUM_8 = "68"
+    NUM_9 = "69"
+
+
 @dataclass
 class ProjectorStatus:
     power: str | None = None
@@ -128,6 +172,7 @@ class ProjectorStatus:
     color_mode: str | None = None
     aspect: str | None = None
     luminance: str | None = None
+    volume: int | None = None
 
     @property
     def errors(self) -> str | None:
@@ -248,6 +293,10 @@ class EscVpNetClient:
             raise ProjectorError(f"Timed out waiting for reply from {self.host}") from e
         except asyncio.IncompleteReadError as e:
             raise ProjectorError(f"Connection closed by {self.host}") from e
+        
+        if log.isEnabledFor(logging.DEBUG):
+            hex_str = " ".join(f"{b:02x}" for b in data)
+            log.debug("RX Hex [%s:%d]: %s", self.host, self.port, hex_str)
         return data.rstrip(PROMPT).strip(b"\r\n")
 
     async def send(self, command: str) -> str:
@@ -257,7 +306,11 @@ class EscVpNetClient:
         if self._writer is None:
             raise ProjectorError("Not connected - use `async with EscVpNetClient(...)`")
         async with self._lock:
-            self._writer.write(command.encode("ascii") + CMD_TERMINATOR)
+            payload = command.encode("ascii") + CMD_TERMINATOR
+            if log.isEnabledFor(logging.DEBUG):
+                hex_str = " ".join(f"{b:02x}" for b in payload)
+                log.debug("TX Hex [%s:%d]: %s ('%s')", self.host, self.port, hex_str, command)
+            self._writer.write(payload)
             await self._writer.drain()
             reply = await self._read_until_prompt()
         text = reply.decode("ascii", errors="replace").strip()
@@ -312,6 +365,10 @@ class EscVpNetClient:
             except ValueError:
                 pass
         return 0
+
+    async def get_volume(self) -> int:
+        """Alias for query_volume."""
+        return await self.query_volume()
 
     async def set_freeze(self, enable: bool) -> None:
         """Enable or disable image freeze."""
@@ -473,11 +530,36 @@ class EscVpNetClient:
             status.luminance = await self.get_luminance()
         except ProjectorError:
             pass
+        try:
+            status.volume = await self.query_volume()
+        except ProjectorError:
+            pass
         return status
 
     async def set_brightness(self, level: int) -> None:
-        """Set brightness (0-255)."""
+        """Set brightness (1-255)."""
         await self.send(f"BRIGHT {level}")
+
+    async def set_moderator_mode(self, enable: bool) -> None:
+        """Enable Multi-PC Moderator mode (Enterprise feature)."""
+        cmd = "MODERATOR ON" if enable else "MODERATOR OFF"
+        await self.send(cmd)
+
+    async def set_whiteboard_sharing(self, enable: bool) -> None:
+        """Enable Whiteboard sharing (isSupportWhitebordSharing)."""
+        cmd = "WBSHARE ON" if enable else "WBSHARE OFF"
+        await self.send(cmd)
+
+    async def set_fcn(self, enable: bool) -> None:
+        """Enable FCN (Forward Coordinates via Network) for Interactive Pen/Touch."""
+        cmd = "FCN ON" if enable else "FCN OFF"
+        await self.send(cmd)
+
+    async def set_encryption(self, mode: str) -> None:
+        """Enable Stream Encryption.
+        Supported modes: OFF, AES, DES, AESEPCTR.
+        """
+        await self.send(f"ENCRYPT {mode.upper()}")
 
     async def get_brightness(self) -> int:
         reply = await self.send("BRIGHT?")

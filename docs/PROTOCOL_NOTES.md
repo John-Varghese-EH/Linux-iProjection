@@ -27,6 +27,28 @@ Documentation compiled directly from Epson network protocol specifications and p
 | LAMP? | Query lamp hours | LAMP=XXXX YY (hours + status) |
 | ERR? | Query error state | ERR=XX |
 | SNO? | Query serial number | SNO=XXXXXXXXX |
+| VOL? | Query volume level | VOL=XX |
+| VOL XX | Set volume (0-255) | (no response body) |
+| FREEZE ON/OFF | Freeze/unfreeze image | (no response body) |
+| BRIGHT XX | Set brightness (1-255) | (no response body) |
+| CONTRAST XX | Set contrast (0-255) | (no response body) |
+| CMODE XX | Set color mode | (no response body) |
+| ASPECT XX | Set aspect ratio | (no response body) |
+| LUMINANCE XX | Set eco mode (00=normal, 01=eco) | (no response body) |
+| KEY XX | Simulate remote key press | (no response body) |
+| HKEYSTONE XX | Horizontal keystone (-60 to 60) | (no response body) |
+| VKEYSTONE XX | Vertical keystone (-60 to 60) | (no response body) |
+| PNAME? | Query projector name | PNAME=string |
+| SIGNAL? | Query signal status | SIGNAL=01 (present) / SIGNAL=00 (absent) |
+| FILTER? | Query filter hours | FILTER=XXXX |
+
+### Enterprise Commands (Reverse-engineered from EMP_PJCON.dll)
+| Command | Description |
+|---------|-------------|
+| MODERATOR ON/OFF | Multi-PC moderator mode |
+| WBSHARE ON/OFF | Whiteboard sharing |
+| FCN ON/OFF | Forward Coordinates (interactive pen/touch) |
+| ENCRYPT mode | Stream encryption (OFF, AES, DES, AESEPCTR) |
 
 ### Input Source Codes
 | Code | Source | Confirmed Models |
@@ -42,34 +64,37 @@ Documentation compiled directly from Epson network protocol specifications and p
 | 53 | LAN/Wireless LAN | EB-series (iProjection) |
 | 56 | Wireless HDMI | Newer models |
 | A0 | HDMI 2 | Dual-HDMI models |
+| F1 | iProjection virtual source 1 | All iProjection models |
+| F2 | iProjection virtual source 2 | All iProjection models |
 
 ### Firmware Quirks
 - Keep-alive required: some firmware drops TCP after ~30s idle. Send `PWR?\r` periodically.
 - Some older firmware sends `\r:` instead of `\r\n:` (handle both).
 
-## Screen Casting Protocol
+## Discovery
 
-### Discovery (mDNS/DNS-SD)
+### mDNS/DNS-SD
 
 Service types:
 - `_epson._tcp.local.` - Epson network projectors (iProjection/EasyMP)
 - `_eshare._tcp.local.` - EShare wireless display receivers
 - `_http._tcp.local.` - Generic HTTP devices (filtered by keywords)
+- `_pjlink._tcp.local.` - PJLink-compatible projectors
 
-TXT records for `_epson._tcp.local.`:
-- `ty` - device type string (e.g., "Epson Projector")
-- `vers` - firmware version
-- `note` - description
-- `usb` - USB availability flag
+### EEMP UDP Broadcast (Reverse-engineered from EMP_PJCON.dll / EMP_NMANG.dll)
 
-TXT records for `_eshare._tcp.local.`:
-- `model` - model name
-- `version` - firmware version
-- `cap` - capabilities (comma-separated: `webcast`, `rtp`)
+Epson proprietary discovery protocol:
+- Client broadcasts UDP packet on port **3620**
+- Packet structure: `EEMP` (4 bytes) + `0100` (4 bytes version) + 56 bytes padding = 64 bytes total
+- Projectors respond on port **3621** with their capabilities
+- Response contains: magic bytes, projector name (ASCII), capability flags
+- Capability flags at byte 16: bit 0 = JPEG rect, bit 1 = MPEG4-AVC, bit 2 = audio, bit 3 = AES
+
+## Screen Casting Protocol
 
 ### Stream Transport
 
-Pure **RTP over UDP** (not RTSP). No session negotiation handshake; the sender simply starts pushing RTP packets to the receiver's IP.
+Pure **RTP over UDP** (not RTSP). No session negotiation handshake; the sender simply starts pushing RTP packets to the receiver's IP. Before streaming, the sender switches the projector to SOURCE 53 (LAN input).
 
 #### Video (port 5004)
 - Codec: H.264 (Baseline/Main profile)
@@ -77,24 +102,23 @@ Pure **RTP over UDP** (not RTSP). No session negotiation handshake; the sender s
 - RTP packetization: `rtph264pay` with `config-interval=1` (SPS/PPS in every keyframe)
 - Resolution: 1920×1080 (negotiable via caps)
 - Framerate: 30fps
+- Pixel format: I420 (mandatory caps filter for encoder compatibility)
 - Encoding: Hardware preferred (vaapih264enc, nvv4l2h264enc), software fallback (x264enc)
-- Color space: I420
 
 #### Audio (port 5006)
 - Codec: Opus (preferred) or AAC (fallback)
 - RTP payload type: 97
-- Sample rate: 48000 Hz, stereo, F32LE input
+- Sample rate: 48000 Hz, stereo, S16LE
 - Opus bitrate: 128 kbps
-- Source: PipeWire default audio monitor (captures all desktop audio)
+- Source: PipeWire (preferred) or PulseAudio monitor (fallback)
 
-### GStreamer Pipeline (complete)
+### GStreamer Pipeline
 
 Video branch:
 ```
 pipewiresrc path={NODE_ID} do-timestamp=true !
-video/x-raw,width=1920,height=1080,framerate=30/1 !
 videoconvert ! videoscale ! videorate !
-video/x-raw,format=I420 !
+video/x-raw,format=I420,framerate=30/1 !
 {encoder} !
 h264parse !
 rtph264pay config-interval=1 pt=96 !
@@ -104,8 +128,8 @@ udpsink host={TARGET_IP} port=5004 sync=false
 Audio branch:
 ```
 pipewiresrc do-timestamp=true !
-audio/x-raw,format=F32LE,channels=2,rate=48000 !
 audioconvert ! audioresample !
+audio/x-raw,format=S16LE,channels=2,rate=48000 !
 opusenc bitrate=128000 !
 rtpopuspay pt=97 !
 udpsink host={TARGET_IP} port=5006 sync=false
@@ -126,3 +150,4 @@ Compatible with all major Wayland compositors:
 - niri (xdg-desktop-portal-gnome or -wlr)
 - Hyprland (xdg-desktop-portal-hyprland)
 - Sway (xdg-desktop-portal-wlr)
+

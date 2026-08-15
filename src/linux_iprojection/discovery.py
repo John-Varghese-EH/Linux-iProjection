@@ -272,15 +272,160 @@ async def discover_by_scan(
     return discovered
 
 
+# ── Epson Proprietary EEMP UDP Broadcast Discovery ──────────────────────────
+#
+# Reverse-engineered from EMP_PJCON.dll and EMP_NMANG.dll.
+# The Windows iProjection app broadcasts UDP packets with magic bytes
+# "EEMP" + "0100" on port 3620. Epson projectors on the LAN respond
+# with their capabilities and identification data.
+
+EEMP_MAGIC = b"EEMP"
+EEMP_VERSION = b"0100"
+EEMP_DISCOVERY_PORT = 3620
+EEMP_RESPONSE_PORT = 3621
+
+
+def _build_eemp_discovery_packet() -> bytes:
+    """Build an EEMP discovery broadcast packet.
+
+    Packet structure (derived from binary analysis):
+    - Bytes 0-3:  Magic "EEMP"
+    - Bytes 4-7:  Version "0100"
+    - Bytes 8-15: Padding/reserved (zeroes)
+    Total: 16 bytes minimum
+    """
+    packet = bytearray(64)
+    packet[0:4] = EEMP_MAGIC
+    packet[4:8] = EEMP_VERSION
+    return bytes(packet)
+
+
+def _parse_eemp_response(data: bytes, addr: tuple) -> DiscoveredDevice | None:
+    """Parse an EEMP discovery response from a projector.
+
+    The response begins with "EEMP" magic bytes followed by capability
+    and identification data.
+    """
+    if len(data) < 8 or data[:4] != EEMP_MAGIC:
+        return None
+
+    ip = addr[0]
+
+    # Extract projector name from response if present
+    # The name is typically embedded as a null-terminated ASCII string
+    name = f"EPSON Projector ({ip})"
+    try:
+        # Look for readable ASCII strings after the header
+        text_region = data[16:]
+        ascii_parts = []
+        current = bytearray()
+        for b in text_region:
+            if 0x20 <= b <= 0x7E:
+                current.append(b)
+            else:
+                if len(current) >= 3:
+                    ascii_parts.append(current.decode("ascii"))
+                current = bytearray()
+        if len(current) >= 3:
+            ascii_parts.append(current.decode("ascii"))
+        if ascii_parts:
+            name = ascii_parts[0]
+    except Exception:
+        pass
+
+    # Parse capability flags from known positions
+    capabilities = ["eemp_discovery"]
+    try:
+        if len(data) > 32:
+            cap_byte = data[16] if len(data) > 16 else 0
+            if cap_byte & 0x01:
+                capabilities.append("jpeg_rect")
+            if cap_byte & 0x02:
+                capabilities.append("mpeg4_avc")
+            if cap_byte & 0x04:
+                capabilities.append("audio")
+            if cap_byte & 0x08:
+                capabilities.append("aes_encryption")
+    except Exception:
+        pass
+
+    return DiscoveredDevice(
+        name=name,
+        address=ip,
+        port=ESCVP_PORT,
+        source="eemp",
+        device_type="projector",
+        capabilities=capabilities,
+        stream_port=5004,
+        audio_port=5006,
+        info={"discovery": "eemp", "raw_len": len(data)},
+    )
+
+
+async def discover_eemp(timeout: float = 2.0) -> list[DiscoveredDevice]:
+    """Discover Epson projectors via the proprietary EEMP UDP broadcast protocol.
+
+    Sends a broadcast packet on port 3620 and listens for responses on port 3621,
+    matching the behavior observed in the Windows iProjection software.
+    """
+    results: list[DiscoveredDevice] = []
+    packet = _build_eemp_discovery_packet()
+
+    loop = asyncio.get_running_loop()
+
+    class EempProtocol(asyncio.DatagramProtocol):
+        def __init__(self):
+            self.transport = None
+
+        def connection_made(self, transport):
+            self.transport = transport
+
+        def datagram_received(self, data, addr):
+            device = _parse_eemp_response(data, addr)
+            if device:
+                log.info("EEMP discovery: found %s at %s", device.name, device.address)
+                results.append(device)
+
+    try:
+        transport, protocol = await loop.create_datagram_endpoint(
+            EempProtocol,
+            local_addr=("0.0.0.0", 0),
+            allow_broadcast=True,
+        )
+
+        try:
+            # Broadcast on all interfaces
+            transport.sendto(packet, ("255.255.255.255", EEMP_DISCOVERY_PORT))
+            # Also try common subnet broadcasts
+            for net in _local_ipv4_networks():
+                try:
+                    broadcast = str(net.broadcast_address)
+                    transport.sendto(packet, (broadcast, EEMP_DISCOVERY_PORT))
+                except Exception:
+                    pass
+
+            await asyncio.sleep(timeout)
+        finally:
+            transport.close()
+    except Exception as e:
+        log.debug("EEMP discovery error: %s", e)
+
+    return results
+
+
 async def discover_all(mdns_timeout: float = 3.0) -> list[DiscoveredDevice]:
-    """Run both strategies concurrently, dedupe by address."""
+    """Run all discovery strategies concurrently, dedupe by address."""
     mdns_task = asyncio.create_task(discover_mdns(mdns_timeout))
     scan_task = asyncio.create_task(discover_by_scan())
-    mdns_results, scan_results = await asyncio.gather(mdns_task, scan_task)
+    eemp_task = asyncio.create_task(discover_eemp(timeout=2.0))
+    mdns_results, scan_results, eemp_results = await asyncio.gather(
+        mdns_task, scan_task, eemp_task
+    )
 
     seen: dict[str, DiscoveredDevice] = {}
-    for d in [*mdns_results, *scan_results]:
-        # Prefer the mDNS entry (has a friendly name) over a bare scan hit.
+    # Priority: mDNS > EEMP > scan (mDNS has friendly names, EEMP has capabilities)
+    for d in [*mdns_results, *eemp_results, *scan_results]:
         if d.address not in seen or seen[d.address].source == "scan":
             seen[d.address] = d
     return list(seen.values())
+

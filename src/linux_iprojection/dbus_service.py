@@ -126,7 +126,7 @@ class ProjectorDBusService:
     def _on_method_call(self, connection, sender, object_path, interface_name, method_name, parameters, invocation):
         try:
             if method_name == "Discover":
-                devices = asyncio.run(discover_all(timeout=3))
+                devices = asyncio.run(discover_all(mdns_timeout=3))
                 result = {dev.address: dev.name for dev in devices}
                 invocation.return_value(GLib.Variant("(a{ss})", (result,)))
 
@@ -166,6 +166,8 @@ class ProjectorDBusService:
                             import asyncio
                             result = asyncio.run(self._caster.start(target))
                             self._is_casting = result
+                        except asyncio.CancelledError:
+                            raise
                         except Exception as e:
                             logger.error(f"Cast failed: {e}")
                             self._is_casting = False
@@ -185,6 +187,8 @@ class ProjectorDBusService:
                         self._caster = None
                     self._is_casting = False
                     invocation.return_value(GLib.Variant("(b)", (True,)))
+                except asyncio.CancelledError:
+                    raise
                 except Exception as e:
                     logger.error(f"StopCast error: {e}")
                     invocation.return_value(GLib.Variant("(b)", (False,)))
@@ -231,21 +235,22 @@ class ProjectorDBusService:
 
     async def _run_macro(self, name, ip):
         store = MacroStore()
-        store.load()
-        macro = next((m for m in store.macros if m.name == name), None)
+        macro = store.get_macro(name)
         if not macro:
             return False
 
         async with ProjectorClient(ip) as client:
             for step in macro.steps:
-                if step.action == 'power_on':
-                    await client.power_on()
-                elif step.action == 'power_off':
-                    await client.power_off()
-                elif step.action == 'set_source':
-                    await client.set_source(step.value)
-                elif step.action == 'delay':
-                    await asyncio.sleep(float(step.value))
+                method = getattr(client, step.command, None)
+                if method is None:
+                    logger.warning("Unknown macro command: %s", step.command)
+                    continue
+                if step.args:
+                    await method(**step.args)
+                else:
+                    await method()
+                if step.delay_ms:
+                    await asyncio.sleep(step.delay_ms / 1000.0)
         return True
 
     def _get_variant_type(self, val):

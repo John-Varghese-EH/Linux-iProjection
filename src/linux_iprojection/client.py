@@ -156,9 +156,15 @@ class ProjectorClient:
             await self._client.send_key(key_code)
 
     async def send_raw(self, cmd: str) -> str:
-        if hasattr(self._client, "run_command"):
+        if hasattr(self._client, "send"):
+            return await self._client.send(cmd)
+        elif hasattr(self._client, "run_command"):
             return await self._client.run_command(cmd)
         return ""
+
+    async def send_command(self, cmd: str) -> str:
+        """Alias for send_raw."""
+        return await self.send_raw(cmd)
 
     async def set_color_mode(self, mode: str):
         if hasattr(self._client, "set_color_mode"):
@@ -171,6 +177,10 @@ class ProjectorClient:
     async def set_luminance(self, mode: str):
         if hasattr(self._client, "set_luminance"):
             await self._client.set_luminance(mode)
+
+    async def set_luminance_mode(self, mode: str):
+        """Alias for set_luminance."""
+        await self.set_luminance(mode)
 
     async def set_brightness(self, level: int):
         if hasattr(self._client, "set_brightness"):
@@ -244,15 +254,34 @@ class ProjectorClient:
             return await self._client.get_input_resolution()
         return ""
 
+    async def set_moderator_mode(self, enable: bool) -> None:
+        if hasattr(self._client, "set_moderator_mode"):
+            await self._client.set_moderator_mode(enable)
+
+    async def set_whiteboard_sharing(self, enable: bool) -> None:
+        if hasattr(self._client, "set_whiteboard_sharing"):
+            await self._client.set_whiteboard_sharing(enable)
+
+    async def set_fcn(self, enable: bool) -> None:
+        if hasattr(self._client, "set_fcn"):
+            await self._client.set_fcn(enable)
+
+    async def set_encryption(self, mode: str) -> None:
+        if hasattr(self._client, "set_encryption"):
+            await self._client.set_encryption(mode)
+
     async def get_status(self) -> UnifiedStatus:
         s = UnifiedStatus()
         try:
             if hasattr(self._client, "get_status"):
                 raw = await self._client.get_status()
-                s.power = raw.power
-                s.source = raw.source
-                s.lamp_hours = raw.lamp_hours
-                s.errors = getattr(raw, "errors", getattr(raw, "error", None))
+
+                # Map all fields from the underlying status object
+                s.power = getattr(raw, "power", None) or ""
+                s.source = getattr(raw, "source", None) or ""
+                s.lamp_hours = getattr(raw, "lamp_hours", None) or 0
+                s.errors = getattr(raw, "errors", getattr(raw, "error", None)) or ""
+
                 if getattr(raw, "muted", None) is not None:
                     s.mute = raw.muted
                 if getattr(raw, "brightness", None) is not None:
@@ -271,74 +300,55 @@ class ProjectorClient:
                     s.signal_present = raw.signal_present
                 if getattr(raw, "errors_decoded", None) is not None:
                     s.errors_decoded = raw.errors_decoded
+
+                # Only query fields NOT already populated by get_status()
+                if not s.mute:
+                    try:
+                        if hasattr(self._client, "get_mute"):
+                            s.mute = await self._client.get_mute()
+                    except Exception:
+                        pass
+                if s.volume == 0:
+                    try:
+                        if hasattr(self._client, "query_volume"):
+                            s.volume = await self._client.query_volume()
+                    except Exception:
+                        pass
+                if not s.serial:
+                    try:
+                        if hasattr(self._client, "get_serial"):
+                            s.serial = await self._client.get_serial()
+                    except Exception:
+                        pass
+                if not s.input_resolution:
+                    try:
+                        if hasattr(self._client, "get_input_resolution"):
+                            s.input_resolution = await self._client.get_input_resolution()
+                    except Exception:
+                        pass
+
             else:
-                if hasattr(self._client, "get_power"):
-                    s.power = await self._client.get_power()
-                if hasattr(self._client, "get_source"):
-                    s.source = await self._client.get_source()
-                if hasattr(self._client, "get_lamp_hours"):
-                    s.lamp_hours = await self._client.get_lamp_hours()
-                if hasattr(self._client, "get_error"):
-                    s.errors = await self._client.get_error()
-
-            if hasattr(self._client, "get_mute"):
-                try:
-                    s.mute = await self._client.get_mute()
-                except Exception:
-                    pass
-            if hasattr(self._client, "query_volume"):
-                try:
-                    s.volume = await self._client.query_volume()
-                except Exception:
-                    pass
-            elif hasattr(self._client, "get_volume"):
-                try:
-                    s.volume = await self._client.get_volume()
-                except Exception:
-                    pass
-            if hasattr(self._client, "get_serial"):
-                try:
-                    s.serial = await self._client.get_serial()
-                except Exception:
-                    pass
-
-            # Extended enterprise fields
-            try:
-                s.brightness = await self.get_brightness()
-            except Exception:
-                pass
-            try:
-                s.contrast = await self.get_contrast()
-            except Exception:
-                pass
-            try:
-                s.sharpness = await self.get_sharpness()
-            except Exception:
-                pass
-            try:
-                s.color_temp = await self.get_color_temp()
-            except Exception:
-                pass
-            try:
-                s.filter_hours = await self.get_filter_hours()
-            except Exception:
-                pass
-            try:
-                s.projector_name = await self.get_projector_name()
-            except Exception:
-                pass
-            try:
-                s.signal_present = await self.get_signal_status()
-            except Exception:
-                pass
-            try:
-                s.input_resolution = await self.get_input_resolution()
-            except Exception:
-                pass
-            try:
-                s.errors_decoded = await self.get_detailed_errors()
-            except Exception:
-                pass
+                # Fallback: query each field individually (PJLink path)
+                if hasattr(self._client, "query_power"):
+                    try:
+                        s.power = await self._client.query_power()
+                    except Exception:
+                        pass
+                if hasattr(self._client, "query_input"):
+                    try:
+                        s.source = await self._client.query_input()
+                    except Exception:
+                        pass
+                if hasattr(self._client, "get_name"):
+                    try:
+                        s.projector_name = await self._client.get_name()
+                    except Exception:
+                        pass
+                if hasattr(self._client, "get_serial"):
+                    try:
+                        s.serial = await self._client.get_serial()
+                    except Exception:
+                        pass
 
             return s
         except Exception as e:

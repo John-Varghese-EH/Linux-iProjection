@@ -138,6 +138,39 @@ class FakeEscVpServer:
             return f"SIGNAL={getattr(self, 'signal', '00')}"
         elif cmd == "RESOLUTION?":
             return f"RESOLUTION={getattr(self, 'resolution', '1920x1080')}"
+        elif cmd == "PNAME?":
+            return f"PNAME={getattr(self, 'projector_name', 'EPSON Projector')}"
+        elif cmd == "VOL?":
+            return f"VOL={getattr(self, 'volume', 10)}"
+        elif cmd.startswith("VOL "):
+            self.volume = int(cmd.split(" ", 1)[1])
+            return ""
+        elif cmd == "FREEZE?":
+            return f"FREEZE={getattr(self, 'freeze', 'OFF')}"
+        elif cmd.startswith("FREEZE "):
+            self.freeze = cmd.split(" ", 1)[1]
+            return ""
+        elif cmd == "CMODE?":
+            return f"CMODE={getattr(self, 'cmode', '06')}"
+        elif cmd.startswith("CMODE "):
+            self.cmode = cmd.split(" ", 1)[1]
+            return ""
+        elif cmd == "ASPECT?":
+            return f"ASPECT={getattr(self, 'aspect', '30')}"
+        elif cmd.startswith("ASPECT "):
+            self.aspect = cmd.split(" ", 1)[1]
+            return ""
+        elif cmd == "LUMINANCE?":
+            return f"LUMINANCE={getattr(self, 'luminance', '00')}"
+        elif cmd.startswith("LUMINANCE "):
+            self.luminance = cmd.split(" ", 1)[1]
+            return ""
+        elif cmd == "TINT?":
+            return f"TINT={getattr(self, 'tint', 128)}"
+        elif cmd == "HREVERSE?":
+            return f"HREVERSE={getattr(self, 'hreverse', 'OFF')}"
+        elif cmd == "VREVERSE?":
+            return f"VREVERSE={getattr(self, 'vreverse', 'OFF')}"
         elif cmd == "BADCMD":
             return "ERR=01"
         elif cmd == "":

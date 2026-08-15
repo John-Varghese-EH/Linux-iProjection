@@ -114,6 +114,16 @@ class FileDumpSink(CastSink):
         return f'mp4mux ! filesink location="{target.host}"'
 
 
+class JpegRtpSink(CastSink):
+    """JPEG Rect-based sink for projectors not supporting H.264 RTP."""
+
+    def build_sink_bin(self, target: CastTarget) -> str:
+        return (
+            f"jpegenc quality=85 ! rtpjpegpay pt=26 ! "
+            f"udpsink host={target.host} port={target.port} sync=false"
+        )
+
+
 # Encoder detection
 
 
@@ -525,7 +535,14 @@ class ScreenCaster:
         if node_id is not None:
             video_src = f"pipewiresrc path={node_id} do-timestamp=true"
         else:
-            video_src = "videotestsrc pattern=smpte is-live=true"
+            _ensure_gst()
+            registry = Gst.Registry.get()
+            if registry.lookup_feature("ximagesrc") and os.environ.get("DISPLAY"):
+                video_src = "ximagesrc use-damage=false show-pointer=true"
+                log.info("Using X11 ximagesrc fallback for screen capture")
+            else:
+                video_src = "videotestsrc pattern=smpte is-live=true"
+                log.info("Using videotestsrc pattern fallback for stream")
 
         # Encoder
         encoder = _probe_encoder(self.encoder_preset, self.stream_quality)
@@ -537,9 +554,14 @@ class ScreenCaster:
             sink = self.sink
         video_sink = sink.build_sink_bin(target)
 
+        # Video branch with proper caps negotiation
+        # The caps filter ensures GStreamer negotiates I420 pixel format
+        # which all H.264 encoders accept. Without this, the pipeline may
+        # negotiate an incompatible format and silently produce garbage.
         video_branch = (
             f"{video_src} ! "
             "videoconvert ! videoscale ! videorate ! "
+            "video/x-raw,format=I420,framerate=30/1 ! "
             f"{encoder} ! h264parse ! "
             f"{video_sink}"
         )
@@ -548,8 +570,19 @@ class ScreenCaster:
         if self.audio_enabled and not is_file:
             audio_enc, audio_pay = _probe_audio_encoder()
             if audio_enc and audio_pay:
+                # Try pipewiresrc first (PipeWire-native, works on modern
+                # Wayland systems), fall back to pulsesrc (PulseAudio compat)
+                _ensure_gst()
+                registry = Gst.Registry.get()
+                if registry.lookup_feature("pipewiresrc"):
+                    audio_src = "pipewiresrc do-timestamp=true"
+                    log.info("Using pipewiresrc for audio capture")
+                else:
+                    audio_src = 'pulsesrc device="@DEFAULT_SINK@.monitor" do-timestamp=true'
+                    log.info("Using pulsesrc for audio capture (PulseAudio fallback)")
+
                 audio_branch = (
-                    "pipewiresrc do-timestamp=true ! "
+                    f"{audio_src} ! "
                     "audioconvert ! audioresample ! "
                     "audio/x-raw,format=S16LE,channels=2,rate=48000 ! "
                     f"{audio_enc} ! {audio_pay} ! "
@@ -616,10 +649,47 @@ class ScreenCaster:
                                 stats.bitrate_kbps = (bytes_served * 8) / 1000.0
                     except Exception:
                         pass
+                        
+            # Adaptive bitrate logic
+            if stats.latency_ms > 500 or self._error_count > 0:
+                # Need to reduce bitrate
+                self._adjust_bitrate(down=True)
+            elif stats.latency_ms < 100 and self._error_count == 0:
+                # Can carefully increase bitrate
+                self._adjust_bitrate(down=False)
 
         if self.on_stats:
             self.on_stats(stats)
         return True
+
+    def _adjust_bitrate(self, down: bool):
+        """Adjust encoder bitrate up or down."""
+        if not self._pipeline:
+            return
+            
+        enc_element = None
+        it = self._pipeline.iterate_elements()
+        while True:
+            res, elem = it.next()
+            if res != Gst.IteratorResult.OK:
+                break
+            if elem.get_factory():
+                name = elem.get_factory().get_name()
+                if "h264enc" in name or "jpegenc" in name:
+                    enc_element = elem
+                    break
+                    
+        if enc_element and hasattr(enc_element, "get_property") and hasattr(enc_element, "set_property"):
+            try:
+                # E.g. x264enc has 'bitrate' in kbps
+                current = enc_element.get_property("bitrate")
+                if current:
+                    if down and current > 1000:
+                        enc_element.set_property("bitrate", int(current * 0.8))
+                    elif not down and current < 8000:
+                        enc_element.set_property("bitrate", int(current * 1.05))
+            except Exception as e:
+                pass
 
 
 def start_test_pattern(

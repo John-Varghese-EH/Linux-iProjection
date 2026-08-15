@@ -8,9 +8,11 @@ import dataclasses
 import json
 import sys
 
+from .cast import CastTarget, RtpUdpSink, ScreenCaster, TEST_PATTERNS
 from .client import ProjectorClient, wake_on_lan
 from .config import MacroStore
 from .discovery import discover_all
+from .pjlink import PJLinkController
 from .protocol import (
     AspectRatio,
     ColorMode,
@@ -40,7 +42,8 @@ async def _status(args):
         print(f"Status for {args.ip}:")
         print(f"  Power:      {'On' if status.power else 'Off'}")
         if status.source:
-            print(f"  Source:     {status.source.name}")
+            source_str = status.source.name if hasattr(status.source, 'name') else str(status.source)
+            print(f"  Source:     {source_str}")
         if status.lamp_hours is not None:
             print(f"  Lamp Hours: {status.lamp_hours}")
         if status.volume is not None:
@@ -167,6 +170,42 @@ async def _contrast(args):
         print(f"Successfully set {args.ip} contrast to {args.level}.")
 
 
+async def _moderator(args):
+    async with ProjectorClient(args.ip, "eps") as client:
+        if not hasattr(client, "set_moderator_mode"):
+            print("Moderator mode is not supported by this client layer.")
+            sys.exit(1)
+        await client.set_moderator_mode(args.state.lower() == "on")
+        print(f"Successfully turned moderator mode {args.state} on {args.ip}.")
+
+
+async def _whiteboard(args):
+    async with ProjectorClient(args.ip, "eps") as client:
+        if not hasattr(client, "set_whiteboard_sharing"):
+            print("Whiteboard sharing is not supported by this client layer.")
+            sys.exit(1)
+        await client.set_whiteboard_sharing(args.state.lower() == "on")
+        print(f"Successfully turned whiteboard sharing {args.state} on {args.ip}.")
+
+
+async def _fcn(args):
+    async with ProjectorClient(args.ip, "eps") as client:
+        if not hasattr(client, "set_fcn"):
+            print("FCN is not supported by this client layer.")
+            sys.exit(1)
+        await client.set_fcn(args.state.lower() == "on")
+        print(f"Successfully turned FCN (Interactive Pen/Touch) {args.state} on {args.ip}.")
+
+
+async def _encrypt(args):
+    async with ProjectorClient(args.ip, "eps") as client:
+        if not hasattr(client, "set_encryption"):
+            print("Encryption is not supported by this client layer.")
+            sys.exit(1)
+        await client.set_encryption(args.mode.upper())
+        print(f"Successfully set {args.ip} stream encryption to {args.mode.upper()}.")
+
+
 async def _keystone(args):
     if not (-60 <= args.value <= 60):
         print("Keystone value must be between -60 and 60.")
@@ -198,10 +237,12 @@ async def _info(args):
         print(f"  Power:              {'On' if status.power else 'Off'}")
         if status.projector_name:
             print(f"  Projector Name:     {status.projector_name}")
-        if status.serial_number:
-            print(f"  Serial Number:      {status.serial_number}")
+        serial_val = getattr(status, "serial", getattr(status, "serial_number", ""))
+        if serial_val:
+            print(f"  Serial Number:      {serial_val}")
         if status.source:
-            print(f"  Source:             {status.source.name}")
+            source_str = status.source.name if hasattr(status.source, "name") else str(status.source)
+            print(f"  Source:             {source_str}")
         if getattr(status, "input_resolution", None):
             print(f"  Input Resolution:   {status.input_resolution}")
         if getattr(status, "signal_present", None) is not None:
@@ -228,6 +269,105 @@ async def _info(args):
                 print(f"    - {k}: {v}")
 
 
+async def _cast(args):
+    """Start screen casting to the projector."""
+    import signal
+
+    if args.switch_source:
+        print(f"Switching {args.ip} to LAN source...")
+        try:
+            async with ProjectorClient(args.ip, "eps") as client:
+                await client.set_source(Source.LAN)
+        except Exception as e:
+            print(f"Warning: could not switch source: {e}")
+
+    target = CastTarget(
+        host=args.ip,
+        port=args.video_port,
+        audio_port=args.audio_port,
+        name=args.ip,
+    )
+    caster = ScreenCaster(
+        sink=RtpUdpSink(),
+        audio_enabled=not args.no_audio,
+        stream_quality=args.quality,
+        on_stats=lambda s: None,
+        on_error=lambda e: print(f"Stream error: {e}"),
+    )
+
+    print(f"Starting screen cast to {args.ip}:{args.video_port} (quality={args.quality})...")
+    success = await caster.start(target)
+    if not success:
+        print("Failed to start casting (portal cancelled or pipeline error).")
+        return
+
+    print(f"Casting to {args.ip} — press Ctrl+C to stop.")
+
+    stop_event = asyncio.Event()
+
+    def _sigint(*_):
+        stop_event.set()
+
+    loop = asyncio.get_running_loop()
+    loop.add_signal_handler(signal.SIGINT, _sigint)
+
+    try:
+        await stop_event.wait()
+    except asyncio.CancelledError:
+        pass
+    finally:
+        caster.stop()
+        print("Casting stopped.")
+
+
+async def _test_pattern(args):
+    """Send a test pattern to the projector for calibration."""
+    target = CastTarget(host=args.ip, port=args.port, name="Test Pattern")
+    caster = ScreenCaster(
+        sink=RtpUdpSink(),
+        stream_quality=args.quality,
+        on_error=lambda e: print(f"Stream error: {e}"),
+    )
+
+    print(f"Starting test pattern '{args.pattern}' → {args.ip}:{args.port} ...")
+    success = await caster.start_test_pattern(target, pattern=args.pattern)
+    if not success:
+        print("Failed to start test pattern.")
+        return
+
+    print("Test pattern streaming — press Ctrl+C to stop.")
+    try:
+        while caster.is_casting:
+            await asyncio.sleep(1)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
+    finally:
+        caster.stop()
+        print("Test pattern stopped.")
+
+
+async def _pjlink(args):
+    """Send a PJLink command to the projector."""
+    async with PJLinkController(args.ip, port=args.port, password=args.password) as ctl:
+        if args.value == "?" and args.command.upper() == "STATUS":
+            status = await ctl.query_status()
+            print(f"PJLink Status for {args.ip}:")
+            print(f"  Power:        {status.power_label}")
+            print(f"  Input:        {status.input_label} ({status.input_code})")
+            print(f"  Lamp:         {status.lamp_hours} h ({'on' if status.lamp_on else 'off'})")
+            print(f"  Name:         {status.name}")
+            print(f"  Manufacturer: {status.manufacturer}")
+            print(f"  Model:        {status.model}")
+            print(f"  Class:        {status.pjlink_class}")
+            if status.serial:
+                print(f"  Serial:       {status.serial}")
+            if status.errors:
+                print(f"  Errors:       {', '.join(status.errors)}")
+        else:
+            resp = await ctl.send_raw(args.command, args.value)
+            print(f"Response: {resp}")
+
+
 async def _macro_run(args):
     store = MacroStore()
     macro = store.get_macro(args.name)
@@ -238,8 +378,14 @@ async def _macro_run(args):
     async with ProjectorClient(args.ip, "eps") as client:
         for step in macro.steps:
             print(f"Running step: {step.command} {step.args}")
-            method = getattr(client, step.command)
-            await method(*step.args)
+            method = getattr(client, step.command, None)
+            if method is None:
+                print(f"  Warning: unknown command '{step.command}', skipping.")
+                continue
+            if step.args:
+                await method(**step.args)
+            else:
+                await method()
             if step.delay_ms:
                 await asyncio.sleep(step.delay_ms / 1000.0)
 
@@ -368,6 +514,23 @@ Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
     keystone_parser.add_argument("value", type=int, help="Keystone value (-60 to 60)")
     keystone_parser.add_argument("ip", help="IP address of the projector")
 
+    # Enterprise features
+    mod_parser = subparsers.add_parser("moderator", help="Turn moderator mode on or off")
+    mod_parser.add_argument("state", choices=["on", "off"], help="Moderator state")
+    mod_parser.add_argument("ip", help="IP address of the projector")
+
+    wb_parser = subparsers.add_parser("whiteboard", help="Turn whiteboard sharing on or off")
+    wb_parser.add_argument("state", choices=["on", "off"], help="Whiteboard state")
+    wb_parser.add_argument("ip", help="IP address of the projector")
+
+    fcn_parser = subparsers.add_parser("fcn", help="Turn FCN (Interactive Pen/Touch) on or off")
+    fcn_parser.add_argument("state", choices=["on", "off"], help="FCN state")
+    fcn_parser.add_argument("ip", help="IP address of the projector")
+
+    enc_parser = subparsers.add_parser("encrypt", help="Set stream encryption mode")
+    enc_parser.add_argument("mode", choices=["off", "aes", "des", "aesepctr"], help="Encryption mode")
+    enc_parser.add_argument("ip", help="IP address of the projector")
+
     # Raw
     raw_parser = subparsers.add_parser("raw", help="Send raw command")
     raw_parser.add_argument("command", help="Raw ESC/VP.net command")
@@ -392,6 +555,36 @@ Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
     export_parser.add_argument("ip", help="IP address of the projector")
     export_parser.add_argument("file", nargs="?", help="Output JSON file (optional)")
 
+    # Cast
+    cast_parser = subparsers.add_parser("cast", help="Start screen casting to projector")
+    cast_parser.add_argument("ip", help="IP address of the projector")
+    cast_parser.add_argument("--video-port", type=int, default=5004, help="Video RTP port (default: 5004)")
+    cast_parser.add_argument("--audio-port", type=int, default=5006, help="Audio RTP port (default: 5006)")
+    cast_parser.add_argument("--no-audio", action="store_true", help="Disable audio streaming")
+    cast_parser.add_argument("--quality", choices=["low_latency", "balanced", "high_quality"], default="balanced",
+                             help="Stream quality preset")
+    cast_parser.add_argument("--switch-source", action="store_true",
+                             help="Automatically switch projector to LAN source before casting")
+
+    # Test Pattern
+    tp_parser = subparsers.add_parser("test-pattern", help="Send a test pattern to projector")
+    tp_parser.add_argument("ip", help="IP address of the projector")
+    tp_parser.add_argument("--pattern", choices=list(TEST_PATTERNS.keys()), default="smpte",
+                           help="Test pattern name (default: smpte)")
+    tp_parser.add_argument("--port", type=int, default=5004, help="Video RTP port (default: 5004)")
+    tp_parser.add_argument("--quality", choices=["low_latency", "balanced", "high_quality"], default="balanced")
+
+    # PJLink
+    pjlink_parser = subparsers.add_parser("pjlink", help="Send PJLink commands")
+    pjlink_parser.add_argument("ip", help="IP address of the projector")
+    pjlink_parser.add_argument("command", help="PJLink command (e.g. POWR, INPT, AVMT, LAMP, ERST, NAME, INF1, INF2)")
+    pjlink_parser.add_argument("value", nargs="?", default="?", help="Command value (default: ? for query)")
+    pjlink_parser.add_argument("--password", default="", help="PJLink password")
+    pjlink_parser.add_argument("--port", type=int, default=4352, help="PJLink port (default: 4352)")
+
+    # Firewall
+    subparsers.add_parser("firewall", help="Configure Linux firewall for iProjection ports")
+
     args = parser.parse_args()
 
     handlers = {
@@ -409,9 +602,17 @@ Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
         "brightness": _brightness,
         "contrast": _contrast,
         "keystone": _keystone,
+        "moderator": _moderator,
+        "whiteboard": _whiteboard,
+        "fcn": _fcn,
+        "encrypt": _encrypt,
         "raw": _raw,
         "info": _info,
         "export": _export,
+        "cast": _cast,
+        "test-pattern": _test_pattern,
+        "pjlink": _pjlink,
+        "firewall": lambda a: __import__("linux_iprojection.firewall", fromlist=[""]).configure_firewall(),
     }
 
     try:
@@ -426,6 +627,8 @@ Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
                 asyncio.run(handler(args))
             else:
                 handler(args)
+    except KeyboardInterrupt:
+        print("\nInterrupted.")
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)

@@ -70,7 +70,7 @@ def load_config() -> AppConfig:
             with open(config_path, "r") as f:
                 data = json.load(f)
             return AppConfig(**data)
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logging.error(f"Failed to load config, using defaults: {e}")
     return AppConfig()
 
@@ -80,7 +80,7 @@ def save_config(config: AppConfig) -> None:
     try:
         with open(config_path, "w") as f:
             json.dump(asdict(config), f, indent=4)
-    except Exception as e:
+    except (OSError, ValueError) as e:
         logging.error(f"Failed to save config: {e}")
 
 
@@ -94,7 +94,7 @@ class DeviceStore:
             try:
                 with open(self.store_path, "r") as f:
                     return json.load(f)
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 logging.error(f"Failed to load device store: {e}")
         return {}
 
@@ -102,7 +102,7 @@ class DeviceStore:
         try:
             with open(self.store_path, "w") as f:
                 json.dump(self.devices, f, indent=4)
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logging.error(f"Failed to save device store: {e}")
 
     def add_or_update_device(self, name: str, ip: str, port: int, source_list: List[str] = None, pjlink_password: str = "", escvp_password: str = ""):
@@ -195,7 +195,7 @@ class MacroStore:
                         steps=steps,
                     )
                 return result
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 logging.error(f"Failed to load macros: {e}")
         return {}
 
@@ -210,7 +210,7 @@ class MacroStore:
                 }
             with open(self.store_path, "w") as f:
                 json.dump(data, f, indent=4)
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logging.error(f"Failed to save macros: {e}")
 
     def add_macro(self, macro: Macro) -> None:
