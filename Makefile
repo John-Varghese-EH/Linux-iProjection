@@ -4,7 +4,7 @@ PYTHON ?= python3
 VERSION := $(shell $(PYTHON) -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
 APP_ID := dev.linux_iprojection.LinuxIProjection
 
-.PHONY: run test lint appimage flatpak deb aur dist-tar clean
+.PHONY: run test lint appimage flatpak deb aur dist-tar clean run-cli check-deps
 
 run:
 	@echo "Starting linux-iprojection $(VERSION) …"
@@ -69,3 +69,22 @@ dist-tar:
 clean:
 	rm -rf .venv dist build-dir build-deb build-aur .flatpak-builder *.egg-info .pytest_cache .ruff_cache
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
+run-cli:
+	@echo "Running linux-iprojection CLI (discover) …"
+	$(PYTHON) -m venv .venv --system-site-packages 2>/dev/null || true
+	.venv/bin/pip install -q -e . 2>/dev/null || true
+	PYTHONPATH=src .venv/bin/linux-iprojection discover
+
+check-deps:
+	@echo "Checking runtime dependencies …"
+	@echo -n "  Python 3.10+:    " && $(PYTHON) --version
+	@echo -n "  GStreamer:       " && gst-inspect-1.0 --version | head -1
+	@echo -n "  pipewiresrc:     " && (gst-inspect-1.0 pipewiresrc >/dev/null 2>&1 && echo "OK" || echo "MISSING")
+	@echo -n "  x264enc:         " && (gst-inspect-1.0 x264enc >/dev/null 2>&1 && echo "OK" || echo "MISSING")
+	@echo -n "  vaapih264enc:    " && (gst-inspect-1.0 vaapih264enc >/dev/null 2>&1 && echo "OK (VAAPI HW)" || echo "not available (SW fallback)")
+	@echo -n "  webrtcbin:       " && (gst-inspect-1.0 webrtcbin >/dev/null 2>&1 && echo "OK" || echo "MISSING (install gst-plugins-bad)")
+	@echo -n "  opusenc:         " && (gst-inspect-1.0 opusenc >/dev/null 2>&1 && echo "OK" || echo "MISSING")
+	@echo -n "  PipeWire:        " && (pw-cli --version 2>/dev/null | head -1 || echo "MISSING")
+	@echo "Done."
+

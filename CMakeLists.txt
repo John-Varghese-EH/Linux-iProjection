@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(linux-iprojection VERSION 1.0.0 LANGUAGES C CXX)
+project(linux-iprojection VERSION 1.3.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,6 +10,7 @@ option(BUILD_TESTS "Build test suite" ON)
 # Find GStreamer dependencies
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GST REQUIRED gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0)
+pkg_check_modules(GST_WEBRTC gstreamer-webrtc-1.0)  # Optional: for WebRTC streaming
 pkg_check_modules(GLIB REQUIRED glib-2.0 gobject-2.0)
 
 include_directories(

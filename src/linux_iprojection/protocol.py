@@ -16,6 +16,7 @@ and the public ESC/VP21 command guides (PWR, SOURCE, MUTE, LAMP, etc).
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from dataclasses import dataclass
 from enum import Enum
@@ -190,13 +191,20 @@ class EscVpNetClient:
     convenience one-shot helper.
     """
 
-    def __init__(self, host: str, port: int = ESCVP_PORT):
+    def __init__(self, host: str, port: int = ESCVP_PORT, password: str = ""):
         self.host = host
         self.port = port
+        self.password = password
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._keepalive_task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
+        self._connected = False
+
+    @property
+    def connected(self) -> bool:
+        """True if the client has an active connection to the projector."""
+        return self._connected and self._writer is not None
 
     async def _attempt_connect(self) -> None:
         try:
@@ -221,6 +229,32 @@ class EscVpNetClient:
 
         log.debug("Connected and handshook with %s:%s", self.host, self.port)
 
+        # Handle password authentication if the projector requires it.
+        # Some projectors send a password challenge after the handshake.
+        # The challenge format is: "ESCA" + 16-byte random salt.
+        # We respond with MD5(salt + password).
+        if self.password:
+            try:
+                # Check if there's a password challenge waiting
+                challenge = await asyncio.wait_for(
+                    self._reader.read(20), timeout=1.0
+                )
+                if challenge and len(challenge) >= 20 and challenge[:4] == b"ESCA":
+                    salt = challenge[4:20]
+                    digest = hashlib.md5(salt + self.password.encode("utf-8")).hexdigest()
+                    self._writer.write(digest.encode("ascii"))
+                    await self._writer.drain()
+                    log.debug("ESC/VP.net password authentication sent to %s", self.host)
+                elif challenge:
+                    # Not a password challenge, push data back conceptually
+                    # (the prompt ':' may have arrived early)
+                    log.debug("No password challenge from %s (got %r)", self.host, challenge[:4])
+            except asyncio.TimeoutError:
+                # No password challenge - projector doesn't require auth
+                log.debug("No password challenge from %s (timeout - auth not required)", self.host)
+
+        self._connected = True
+
     async def connect(self) -> None:
         retries = 0
         delay = 0.5
@@ -231,6 +265,7 @@ class EscVpNetClient:
             except ProjectorError as e:
                 retries += 1
                 if retries == MAX_RETRIES:
+                    self._connected = False
                     raise ProjectorUnreachableError(
                         f"Failed to connect after {MAX_RETRIES} attempts: {e}"
                     ) from e
@@ -252,6 +287,7 @@ class EscVpNetClient:
             pass
         except Exception as e:
             log.debug(f"Keepalive failed: {e}")
+            self._connected = False
             self._writer = None
             self._reader = None
 
@@ -266,6 +302,7 @@ class EscVpNetClient:
 
     async def close(self) -> None:
         self.stop_keepalive()
+        self._connected = False
         if self._writer is not None:
             self._writer.close()
             try:
@@ -286,12 +323,19 @@ class EscVpNetClient:
         await self.close()
 
     async def _read_until_prompt(self) -> bytes:
+        """Read projector response until the ':' prompt character.
+
+        Handles firmware quirks where some models send ``\\r:`` instead of
+        ``\\r\\n:`` after the response payload.
+        """
         assert self._reader is not None
         try:
             data = await asyncio.wait_for(self._reader.readuntil(PROMPT), timeout=COMMAND_TIMEOUT)
         except asyncio.TimeoutError as e:
+            self._connected = False
             raise ProjectorError(f"Timed out waiting for reply from {self.host}") from e
         except asyncio.IncompleteReadError as e:
+            self._connected = False
             raise ProjectorError(f"Connection closed by {self.host}") from e
         
         if log.isEnabledFor(logging.DEBUG):

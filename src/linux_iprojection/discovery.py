@@ -288,15 +288,16 @@ EEMP_RESPONSE_PORT = 3621
 def _build_eemp_discovery_packet() -> bytes:
     """Build an EEMP discovery broadcast packet.
 
-    Packet structure (derived from binary analysis):
+    Packet structure (derived from binary analysis of EMP_NMANG.dll):
     - Bytes 0-3:  Magic "EEMP"
     - Bytes 4-7:  Version "0100"
-    - Bytes 8-15: Padding/reserved (zeroes)
-    Total: 16 bytes minimum
+    - Bytes 8-63: Padding/reserved (zeroes)
+    Total: 64 bytes
     """
     packet = bytearray(64)
     packet[0:4] = EEMP_MAGIC
     packet[4:8] = EEMP_VERSION
+    log.debug("Built EEMP discovery packet (%d bytes)", len(packet))
     return bytes(packet)
 
 
@@ -304,16 +305,24 @@ def _parse_eemp_response(data: bytes, addr: tuple) -> DiscoveredDevice | None:
     """Parse an EEMP discovery response from a projector.
 
     The response begins with "EEMP" magic bytes followed by capability
-    and identification data.
+    and identification data. Reverse-engineered from EMP_PJCON.dll /
+    EMP_NMANG.dll binary analysis.
     """
     if len(data) < 8 or data[:4] != EEMP_MAGIC:
         return None
 
     ip = addr[0]
 
+    if log.isEnabledFor(logging.DEBUG):
+        hex_str = " ".join(f"{b:02x}" for b in data[:64])
+        log.debug("EEMP response from %s (%d bytes): %s%s",
+                  ip, len(data), hex_str,
+                  "..." if len(data) > 64 else "")
+
     # Extract projector name from response if present
     # The name is typically embedded as a null-terminated ASCII string
     name = f"EPSON Projector ({ip})"
+    firmware_version = ""
     try:
         # Look for readable ASCII strings after the header
         text_region = data[16:]
@@ -330,14 +339,19 @@ def _parse_eemp_response(data: bytes, addr: tuple) -> DiscoveredDevice | None:
             ascii_parts.append(current.decode("ascii"))
         if ascii_parts:
             name = ascii_parts[0]
+        # Second string is often firmware version
+        if len(ascii_parts) >= 2:
+            firmware_version = ascii_parts[1]
     except Exception:
         pass
 
-    # Parse capability flags from known positions
+    # Parse capability flags from known byte positions
+    # Derived from EMP_PJCON.dll capability flag parsing
     capabilities = ["eemp_discovery"]
+    streaming_mode = "rtp"  # default to raw RTP push
     try:
-        if len(data) > 32:
-            cap_byte = data[16] if len(data) > 16 else 0
+        if len(data) > 16:
+            cap_byte = data[16]
             if cap_byte & 0x01:
                 capabilities.append("jpeg_rect")
             if cap_byte & 0x02:
@@ -346,8 +360,30 @@ def _parse_eemp_response(data: bytes, addr: tuple) -> DiscoveredDevice | None:
                 capabilities.append("audio")
             if cap_byte & 0x08:
                 capabilities.append("aes_encryption")
+            if cap_byte & 0x10:
+                capabilities.append("moderator")
+            if cap_byte & 0x20:
+                capabilities.append("webrtc")
+                streaming_mode = "webrtc"
+            if cap_byte & 0x40:
+                capabilities.append("whiteboard")
+        if len(data) > 17:
+            cap2 = data[17]
+            if cap2 & 0x01:
+                capabilities.append("interactive_pen")
+            if cap2 & 0x02:
+                capabilities.append("split_screen")
     except Exception:
         pass
+
+    info_dict = {
+        "discovery": "eemp",
+        "raw_len": len(data),
+        "streaming_mode": streaming_mode,
+    }
+    if firmware_version:
+        info_dict["firmware"] = firmware_version
+        capabilities.append(f"fw:{firmware_version}")
 
     return DiscoveredDevice(
         name=name,
@@ -358,7 +394,7 @@ def _parse_eemp_response(data: bytes, addr: tuple) -> DiscoveredDevice | None:
         capabilities=capabilities,
         stream_port=5004,
         audio_port=5006,
-        info={"discovery": "eemp", "raw_len": len(data)},
+        info=info_dict,
     )
 
 

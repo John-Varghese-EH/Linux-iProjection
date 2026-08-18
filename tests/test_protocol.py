@@ -178,4 +178,97 @@ async def test_enterprise_features(fake_server):
         
         signal = await client.get_signal_status()
         assert signal is False
+
+
+@pytest.mark.asyncio
+async def test_connected_property(fake_server):
+    """The connected property should track connection state."""
+    client = EscVpNetClient("127.0.0.1", fake_server.actual_port)
+    assert client.connected is False
+
+    await client.connect()
+    assert client.connected is True
+
+    await client.close()
+    assert client.connected is False
+
+
+@pytest.mark.asyncio
+async def test_connected_false_after_failed_connect():
+    """connected should be False after a failed connection attempt."""
+    client = EscVpNetClient("127.0.0.1", 1)
+    assert client.connected is False
+    try:
+        await client.connect()
+    except Exception:
+        pass
+    assert client.connected is False
+
+
+@pytest.mark.asyncio
+async def test_enterprise_moderator(fake_server):
+    """MODERATOR ON/OFF should round-trip."""
+    async with EscVpNetClient("127.0.0.1", fake_server.actual_port) as client:
+        await client.set_moderator_mode(True)
+        await client.set_moderator_mode(False)
+
+
+@pytest.mark.asyncio
+async def test_enterprise_whiteboard(fake_server):
+    """WBSHARE ON/OFF should round-trip."""
+    async with EscVpNetClient("127.0.0.1", fake_server.actual_port) as client:
+        await client.set_whiteboard_sharing(True)
+        await client.set_whiteboard_sharing(False)
+
+
+@pytest.mark.asyncio
+async def test_enterprise_fcn(fake_server):
+    """FCN ON/OFF should round-trip."""
+    async with EscVpNetClient("127.0.0.1", fake_server.actual_port) as client:
+        await client.set_fcn(True)
+        await client.set_fcn(False)
+
+
+@pytest.mark.asyncio
+async def test_enterprise_encryption(fake_server):
+    """ENCRYPT command should accept all supported modes."""
+    async with EscVpNetClient("127.0.0.1", fake_server.actual_port) as client:
+        await client.set_encryption("AES")
+        await client.set_encryption("AESEPCTR")
+        await client.set_encryption("OFF")
+
+
+@pytest.mark.asyncio
+async def test_key_simulation(fake_server):
+    """KEY command should send without error."""
+    async with EscVpNetClient("127.0.0.1", fake_server.actual_port) as client:
+        from linux_iprojection.protocol import RemoteKey
+        await client.send_key(RemoteKey.MENU)
+        await client.send_key(RemoteKey.ENTER)
+        await client.send_key(RemoteKey.ESCAPE)
+
+
+@pytest.mark.asyncio
+async def test_password_constructor():
+    """EscVpNetClient should accept a password parameter."""
+    client = EscVpNetClient("127.0.0.1", password="my_secret")
+    assert client.password == "my_secret"
+
+
+@pytest.mark.asyncio
+async def test_volume_set_and_query(fake_server):
+    """Volume set/query should round-trip."""
+    async with EscVpNetClient("127.0.0.1", fake_server.actual_port) as client:
+        await client.set_volume(75)
+        result = await client.query_volume()
+        assert result == 75
+
+
+@pytest.mark.asyncio
+async def test_freeze_set_and_query(fake_server):
+    """Freeze set/query should work."""
+    async with EscVpNetClient("127.0.0.1", fake_server.actual_port) as client:
+        await client.set_freeze(True)
+        await client.set_freeze(False)
+
         

@@ -12,10 +12,12 @@ def main():
 
     # Check if the first argument is a valid CLI command or --help
     cli_commands = {
-        "discover", "status", "power", "source", "volume", "wake", 
-        "mute", "freeze", "color-mode", "aspect", "luminance", 
-        "brightness", "contrast", "keystone", "raw", "info", 
-        "macro", "export", "-h", "--help"
+        "discover", "status", "power", "source", "volume", "wake",
+        "mute", "freeze", "color-mode", "aspect", "luminance",
+        "brightness", "contrast", "keystone", "raw", "info",
+        "macro", "export", "cast", "test-pattern", "pjlink",
+        "firewall", "moderator", "whiteboard", "fcn", "encrypt",
+        "-h", "--help",
     }
 
     # Are we trying to run a CLI command?

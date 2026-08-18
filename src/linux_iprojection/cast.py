@@ -31,6 +31,7 @@ from gi.repository import Gio, GLib, Gst  # noqa: E402
 log = logging.getLogger(__name__)
 
 _portal_token_counter = 0
+_portal_session_handle: str | None = None
 
 # Lazy init - don't call Gst.init at import time
 _gst_initialized = False
@@ -323,11 +324,40 @@ async def _request_portal_stream(virtual: bool = False) -> Optional[int]:
 
         node_id = int(streams[0][0])
         log.info("PipeWire node ID: %d", node_id)
+
+        # Save session handle for cleanup
+        global _portal_session_handle
+        _portal_session_handle = session_handle
+
         return node_id
 
     except Exception as e:
         log.warning("Portal ScreenCast failed: %s", e)
         return None
+
+
+def _close_portal_session() -> None:
+    """Close the active XDG Desktop Portal ScreenCast session."""
+    global _portal_session_handle
+    if _portal_session_handle is None:
+        return
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        bus.call_sync(
+            "org.freedesktop.portal.Desktop",
+            _portal_session_handle,
+            "org.freedesktop.portal.Session",
+            "Close",
+            None,
+            None,
+            Gio.DBusCallFlags.NONE,
+            1000,
+            None,
+        )
+        log.info("Portal session closed: %s", _portal_session_handle)
+    except Exception as e:
+        log.debug("Portal session close failed (may already be closed): %s", e)
+    _portal_session_handle = None
 
 
 # Pipeline manager
@@ -448,6 +478,24 @@ class ScreenCaster:
         )
         return True
 
+    async def _prepare_projector_for_stream(self, target: CastTarget) -> None:
+        """Switch the projector to LAN source before streaming.
+
+        Sends SOURCE 53 (LAN input) via ESC/VP.net so the projector's
+        internal decoder is ready to receive the incoming RTP stream.
+        This mirrors what the Windows iProjection app does before pushing frames.
+        """
+        try:
+            from .protocol import EscVpNetClient, Source
+            async with EscVpNetClient(target.host) as client:
+                await client.set_source(Source.LAN)
+                log.info("Switched %s to LAN source (53) for streaming", target.host)
+        except Exception as e:
+            log.warning(
+                "Could not auto-switch %s to LAN source: %s (stream may still work if already on LAN)",
+                target.host, e,
+            )
+
     async def start_test_pattern(self, target: CastTarget, pattern: str = "smpte") -> bool:
         """Start casting a GStreamer test pattern instead of screen capture.
 
@@ -520,6 +568,9 @@ class ScreenCaster:
                     bus.remove_signal_watch()
             self._pipeline = None
 
+        # Close the portal session to release the PipeWire capture
+        _close_portal_session()
+
         self._target = None
         self._active_pattern = None
         log.info("Casting stopped")
@@ -575,8 +626,13 @@ class ScreenCaster:
                 _ensure_gst()
                 registry = Gst.Registry.get()
                 if registry.lookup_feature("pipewiresrc"):
-                    audio_src = "pipewiresrc do-timestamp=true"
-                    log.info("Using pipewiresrc for audio capture")
+                    # Use target.object to capture desktop/monitor audio
+                    # without conflicting with the video pipewiresrc node.
+                    audio_src = (
+                        'pipewiresrc do-timestamp=true '
+                        'stream-properties="props,media.class=Audio/Sink"'
+                    )
+                    log.info("Using pipewiresrc for audio capture (desktop audio)")
                 else:
                     audio_src = 'pulsesrc device="@DEFAULT_SINK@.monitor" do-timestamp=true'
                     log.info("Using pulsesrc for audio capture (PulseAudio fallback)")
@@ -660,6 +716,23 @@ class ScreenCaster:
 
         if self.on_stats:
             self.on_stats(stats)
+
+        # Periodic stream diagnostics log (every ~5 seconds based on 1s timer)
+        if hasattr(self, '_stats_log_counter'):
+            self._stats_log_counter += 1
+        else:
+            self._stats_log_counter = 1
+
+        if self._stats_log_counter % 5 == 0 and self._target:
+            log.debug(
+                "Stream stats → %s:%d | bitrate=%.0f kbps latency=%.0f ms "
+                "dropped=%d audio=%s errors=%d",
+                self._target.host, self._target.port,
+                stats.bitrate_kbps, stats.latency_ms,
+                stats.dropped, stats.audio_active,
+                self._error_count,
+            )
+
         return True
 
     def _adjust_bitrate(self, down: bool):
@@ -699,8 +772,22 @@ def start_test_pattern(
     on_stats: Any = None,
     on_error: Any = None,
 ) -> ScreenCaster:
-    """Convenience helper to create and start a ScreenCaster with a test pattern."""
+    """Convenience helper to create and start a ScreenCaster with a test pattern.
+
+    Works whether or not an asyncio event loop is already running.
+    """
     target = CastTarget(host=host, port=port, name="Test Pattern")
     caster = ScreenCaster(sink=RtpUdpSink(), on_stats=on_stats, on_error=on_error)
-    asyncio.run(caster.start_test_pattern(target, pattern=pattern_name.lower()))
+
+    async def _start():
+        await caster.start_test_pattern(target, pattern=pattern_name.lower())
+
+    try:
+        loop = asyncio.get_running_loop()
+        # Already in an async context — schedule as a task
+        loop.create_task(_start())
+    except RuntimeError:
+        # No running loop — create one
+        asyncio.run(_start())
+
     return caster
