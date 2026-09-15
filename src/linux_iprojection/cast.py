@@ -612,7 +612,7 @@ class ScreenCaster:
         video_branch = (
             f"{video_src} ! "
             "videoconvert ! videoscale ! videorate ! "
-            "video/x-raw,format=I420,framerate=30/1 ! "
+            "video/x-raw,framerate=30/1 ! videoconvert ! "
             f"{encoder} ! h264parse ! "
             f"{video_sink}"
         )

@@ -1,0 +1,15 @@
+[Unit]
+Description=Epson iProjection D-Bus Background Service & Network Manager
+Documentation=https://github.com/John-Varghese-EH/Linux-iProjection
+After=network.target sound.target pipewire.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/linux-iprojection daemon
+Restart=on-failure
+RestartSec=3s
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

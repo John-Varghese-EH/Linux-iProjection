@@ -666,6 +666,13 @@ class MainWindow(Adw.ApplicationWindow):
 
         source_names = [s.name.replace("_", " ").title() for s in Source]
         self.source_dropdown = Gtk.DropDown.new_from_strings(source_names)
+        
+        try:
+            lan_idx = list(Source).index(Source.LAN)
+            self.source_dropdown.set_selected(lan_idx)
+        except ValueError:
+            pass
+            
         self.source_dropdown.connect("notify::selected", self.on_source_changed)
         source_row.add_suffix(self.source_dropdown)
         source_group.add(source_row)
