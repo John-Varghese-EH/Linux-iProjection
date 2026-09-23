@@ -188,6 +188,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.current_device: DiscoveredDevice | None = None
         self._config: AppConfig = load_config()
         self._device_store = DeviceStore()
+        self._known_device_addrs = set()
         self._polling_source_id: int | None = None
         self._is_casting = False
         self._caster = None
@@ -244,15 +245,43 @@ class MainWindow(Adw.ApplicationWindow):
             transition_type=Gtk.StackTransitionType.CROSSFADE,
         )
 
-        # Empty state
-        self.empty_status = Adw.StatusPage(
-            title="No projectors found",
-            description="Scan the network or add one by IP address",
+        # Empty state (Sidebar Onboarding Carousel)
+        self.empty_status = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=12,
+            margin_top=48,
+            margin_bottom=24,
+            halign=Gtk.Align.CENTER
+        )
+        carousel = Adw.Carousel(vexpand=True, width_request=280)
+        
+        slide1 = Adw.StatusPage(
+            title="Welcome",
+            description="Control and cast to Epson projectors natively on Linux.",
+            icon_name="video-display-symbolic",
+        )
+        slide2 = Adw.StatusPage(
+            title="Auto Discovery",
+            description="Projectors on your network will appear here automatically.",
             icon_name="network-wireless-symbolic",
         )
+        slide3 = Adw.StatusPage(
+            title="Screen Mirroring",
+            description="Share your desktop directly with high-performance PipeWire casting.",
+            icon_name="screen-shared-symbolic",
+        )
+        
+        carousel.append(slide1)
+        carousel.append(slide2)
+        carousel.append(slide3)
+        
+        dots = Adw.CarouselIndicatorDots(carousel=carousel, halign=Gtk.Align.CENTER)
+        
+        self.empty_status.append(carousel)
+        self.empty_status.append(dots)
 
         empty_actions = Gtk.Box(
-            orientation=Gtk.Orientation.HORIZONTAL, spacing=12, halign=Gtk.Align.CENTER
+            orientation=Gtk.Orientation.HORIZONTAL, spacing=12, halign=Gtk.Align.CENTER, margin_top=24
         )
         refresh_btn_large = Gtk.Button(label="Refresh", css_classes=["pill", "suggested-action"])
         refresh_btn_large.connect("clicked", self.on_refresh)
@@ -261,7 +290,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         empty_actions.append(refresh_btn_large)
         empty_actions.append(add_manual_btn_large)
-        self.empty_status.set_child(empty_actions)
+        self.empty_status.append(empty_actions)
 
         self.sidebar_stack.add_named(self.empty_status, "empty")
 
@@ -321,8 +350,15 @@ class MainWindow(Adw.ApplicationWindow):
         self.content_stack = Gtk.Stack(
             transition_type=Gtk.StackTransitionType.CROSSFADE,
         )
+        self.content_empty = Adw.StatusPage(
+            title="iProjection",
+            description="Select a projector from the sidebar to begin",
+            icon_name="dev.linux_iprojection.LinuxIProjection",
+        )
+        self.content_stack.add_named(self.content_empty, "empty")
         self.content_stack.add_named(self._build_control_panel(), "control")
         self.content_stack.add_named(self._build_casting_panel(), "casting")
+        self.content_stack.set_visible_child_name("empty")
         content_toolbar.set_content(self.content_stack)
         content_page.set_child(content_toolbar)
         self.split.set_content(content_page)
@@ -1003,6 +1039,10 @@ class MainWindow(Adw.ApplicationWindow):
     def _set_casting_state(self, state: bool) -> None:
         self._is_casting = state
         self._update_tray_state()
+        if state:
+            self.cast_btn.add_css_class("casting")
+        else:
+            self.cast_btn.remove_css_class("casting")
 
     def _handle_tray_command(self, cmd: str) -> None:
         if cmd == "TOGGLE_WINDOW":
@@ -1327,6 +1367,7 @@ class MainWindow(Adw.ApplicationWindow):
             self.control_panel_box.set_sensitive(False)
             self.device_title.set_label("No Projector Connected")
             self.device_subtitle.set_label("Select a device from the sidebar to connect")
+            self.content_stack.set_visible_child_name("empty")
             self.split.set_show_content(False)
 
         # Remove from ListBox
@@ -1352,6 +1393,9 @@ class MainWindow(Adw.ApplicationWindow):
         clean_devices = []
         seen_addrs = set()
 
+        new_count = 0
+        new_name = ""
+
         for d in devices:
             norm_addr = _normalize_ip(d.address)
             d.address = norm_addr
@@ -1361,6 +1405,13 @@ class MainWindow(Adw.ApplicationWindow):
             if norm_addr in persisted_dict:
                 d.alias = persisted_dict[norm_addr].get("alias")
             clean_devices.append(d)
+            
+            # Auto-discovery toast tracking
+            if norm_addr not in self._known_device_addrs:
+                self._known_device_addrs.add(norm_addr)
+                if d.source != "persisted":
+                    new_count += 1
+                    new_name = d.alias or d.name or norm_addr
 
         # Add persisted ones that aren't discovered
         for pd in persisted:
@@ -1381,6 +1432,11 @@ class MainWindow(Adw.ApplicationWindow):
 
         for d in clean_devices:
             self.device_list.append(DeviceRow(d, on_delete=self._delete_device_row))
+
+        if new_count == 1:
+            self.show_toast(f"Discovered new projector: {new_name}")
+        elif new_count > 1:
+            self.show_toast(f"Discovered {new_count} new projectors")
 
         # Save clean discovered devices
         self._device_store.save_devices(
@@ -2129,6 +2185,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_cast_started(self, device_name: str) -> None:
         self._set_casting_state(True)
+        self.cast_btn.set_label("Stop Casting")
         self.casting_title.set_label(f"Casting to {device_name}")
         self.casting_status.set_label("Streaming…")
         self.content_stack.set_visible_child_name("casting")
@@ -2555,13 +2612,17 @@ class EpsonCtlApp(Adw.Application):
 
             /* Casting panel — pulsing animation placeholder */
             @keyframes pulse-glow {
-                0%   { opacity: 0.7; transform: scale(1); }
-                50%  { opacity: 1.0; transform: scale(1.05); text-shadow: 0 0 10px #2ec27e; }
-                100% { opacity: 0.7; transform: scale(1); }
+                0%   { opacity: 0.7; transform: scale(1); box-shadow: 0 0 0px #e01b24; }
+                50%  { opacity: 1.0; transform: scale(1.02); box-shadow: 0 0 20px #e01b24; }
+                100% { opacity: 0.7; transform: scale(1); box-shadow: 0 0 0px #e01b24; }
             }
             .casting-indicator {
                 color: #2ec27e;
                 font-weight: 800;
+                animation: pulse-glow 2s infinite ease-in-out;
+            }
+            .cast-btn.casting {
+                background: linear-gradient(135deg, #e01b24, #c01c28);
                 animation: pulse-glow 2s infinite ease-in-out;
             }
             
