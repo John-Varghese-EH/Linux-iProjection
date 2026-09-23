@@ -1,11 +1,12 @@
-import asyncio
 import pytest
+
 from linux_iprojection.client import ProjectorClient, wake_on_lan
+
 
 @pytest.mark.asyncio
 async def test_projector_client_init():
     client = ProjectorClient("127.0.0.1")
-    assert client.ip == "127.0.0.1"
+    assert client.host == "127.0.0.1"
 
 @pytest.mark.asyncio
 async def test_wake_on_lan():
@@ -41,7 +42,7 @@ async def test_client_status_deduplication(mocker):
     status = await client.get_status()
     assert status.power == "01"
     assert status.source == "30"
-    assert status.mute == True
+    assert status.mute
     assert status.projector_name == "TEST_PROJ"
     
     # ensure individual queries weren't called

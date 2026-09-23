@@ -456,10 +456,35 @@ class ScreenCaster:
         # Start playing
         ret = self._pipeline.set_state(Gst.State.PLAYING)
         if ret == Gst.StateChangeReturn.FAILURE:
-            log.error("Failed to enter PLAYING state")
-            if self.on_error:
-                self.on_error("GStreamer failed to start")
-            return False
+            log.warning("Hardware encoder failed to start, falling back to software x264enc")
+            self._pipeline.set_state(Gst.State.NULL)
+            bus.remove_signal_watch()
+            
+            # Re-probe forcing AUTO software fallback (x264enc)
+            safe_encoder = "x264enc bitrate=4000 speed-preset=veryfast tune=zerolatency key-int-max=30"
+            
+            # Retrieve encoder dynamically to replace
+            encoder = _probe_encoder(self.encoder_preset, self.stream_quality)
+            pipeline_str = pipeline_str.replace(encoder, safe_encoder)
+            
+            try:
+                self._pipeline = Gst.parse_launch(pipeline_str)
+            except Exception as e:
+                log.error("Failed to parse fallback pipeline: %s", e)
+                if self.on_error:
+                    self.on_error(f"Fallback pipeline parse error: {e}")
+                return False
+
+            bus = self._pipeline.get_bus()
+            bus.add_signal_watch()
+            self._bus_watch_id = bus.connect("message", self._on_bus_message)
+            
+            ret = self._pipeline.set_state(Gst.State.PLAYING)
+            if ret == Gst.StateChangeReturn.FAILURE:
+                log.error("Failed to start pipeline even with software fallback")
+                if self.on_error:
+                    self.on_error("Failed to start stream (check GStreamer hardware & software plugins)")
+                return False
 
         self._error_count = 0
         self._target = target
@@ -516,7 +541,7 @@ class ScreenCaster:
         pipeline_str = (
             f"videotestsrc pattern={pattern_id} is-live=true ! "
             "video/x-raw,width=1920,height=1080,framerate=30/1 ! "
-            "videoconvert ! videoscale ! "
+            "videoconvert ! videoscale ! videoconvert ! "
             f"{encoder} ! h264parse ! "
             f"{video_sink}"
         )
@@ -536,10 +561,32 @@ class ScreenCaster:
 
         ret = self._pipeline.set_state(Gst.State.PLAYING)
         if ret == Gst.StateChangeReturn.FAILURE:
-            log.error("Failed to start test pattern")
-            if self.on_error:
-                self.on_error("GStreamer failed to start test pattern")
-            return False
+            log.warning("Hardware encoder failed to start, falling back to software x264enc")
+            self._pipeline.set_state(Gst.State.NULL)
+            bus.remove_signal_watch()
+            
+            # Re-probe forcing AUTO software fallback (x264enc)
+            safe_encoder = "x264enc bitrate=4000 speed-preset=veryfast tune=zerolatency key-int-max=30"
+            pipeline_str = pipeline_str.replace(encoder, safe_encoder)
+            
+            try:
+                self._pipeline = Gst.parse_launch(pipeline_str)
+            except Exception as e:
+                log.error("Failed to parse fallback pipeline: %s", e)
+                if self.on_error:
+                    self.on_error(f"Fallback pipeline error: {e}")
+                return False
+
+            bus = self._pipeline.get_bus()
+            bus.add_signal_watch()
+            self._bus_watch_id = bus.connect("message", self._on_bus_message)
+            
+            ret = self._pipeline.set_state(Gst.State.PLAYING)
+            if ret == Gst.StateChangeReturn.FAILURE:
+                log.error("Failed to start test pattern even with fallback")
+                if self.on_error:
+                    self.on_error("Failed to start pipeline (Hardware & Software encoding both failed)")
+                return False
 
         self._error_count = 0
         self._target = target
@@ -606,13 +653,13 @@ class ScreenCaster:
         video_sink = sink.build_sink_bin(target)
 
         # Video branch with proper caps negotiation
-        # The caps filter ensures GStreamer negotiates I420 pixel format
-        # which all H.264 encoders accept. Without this, the pipeline may
-        # negotiate an incompatible format and silently produce garbage.
+        # Limits resolution to 1080p and framerate to 30fps for projector compatibility.
+        # Uses videoconvert before the encoder to allow HW encoders to negotiate their 
+        # preferred native format (like NV12) instead of hardcoding I420.
         video_branch = (
             f"{video_src} ! "
             "videoconvert ! videoscale ! videorate ! "
-            "video/x-raw,framerate=30/1 ! videoconvert ! "
+            "video/x-raw,width=1920,height=1080,framerate=30/1 ! videoconvert ! "
             f"{encoder} ! h264parse ! "
             f"{video_sink}"
         )
@@ -761,7 +808,7 @@ class ScreenCaster:
                         enc_element.set_property("bitrate", int(current * 0.8))
                     elif not down and current < 8000:
                         enc_element.set_property("bitrate", int(current * 1.05))
-            except Exception as e:
+            except Exception:
                 pass
 
 

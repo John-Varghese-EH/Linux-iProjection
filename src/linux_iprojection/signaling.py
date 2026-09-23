@@ -268,5 +268,3 @@ def has_webrtcbin() -> bool:
         return registry.lookup_feature("webrtcbin") is not None
     except Exception:
         return False
-"""
-<parameter name="toolAction">Creating signaling stub

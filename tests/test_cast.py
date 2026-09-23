@@ -1,12 +1,12 @@
-import pytest
 from linux_iprojection.cast import (
-    ScreenCaster,
     CastTarget,
-    RtpUdpSink,
-    JpegRtpSink,
     EncoderPreset,
+    JpegRtpSink,
+    RtpUdpSink,
+    ScreenCaster,
     _probe_encoder,
 )
+
 
 def test_probe_encoder_auto():
     # Should return a string that is a valid element + config

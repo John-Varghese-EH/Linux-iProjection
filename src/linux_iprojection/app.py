@@ -2396,22 +2396,38 @@ class MainWindow(Adw.ApplicationWindow):
 
 
     def _show_error_dialog(self, title: str, error_msg: str) -> None:
-        dialog = Adw.MessageDialog(
-            heading=title,
-            body=error_msg,
-            transient_for=self,
-        )
-        dialog.add_response("close", "Close")
-        dialog.add_response("copy", "Copy Error")
-        dialog.set_response_appearance("close", Adw.ResponseAppearance.SUGGESTED)
+        if hasattr(Adw, "AlertDialog"):
+            dialog = Adw.AlertDialog.new(heading=title, body=error_msg)
+            dialog.add_response("close", "Close")
+            dialog.add_response("copy", "Copy Error")
+            dialog.set_response_appearance("close", Adw.ResponseAppearance.SUGGESTED)
 
-        def on_response(dlg, response):
-            if response == "copy":
-                cb = self.get_clipboard()
-                cb.set(error_msg)
-                self.show_toast("Error copied to clipboard")
-        dialog.connect("response", on_response)
-        dialog.present()
+            def on_response(dlg, response, *args):
+                if response == "copy":
+                    cb = self.get_clipboard()
+                    cb.set(error_msg)
+                    self.show_toast("Error copied to clipboard")
+
+            dialog.choose(self, None, on_response)
+        else:
+            dialog = Adw.MessageDialog(
+                heading=title,
+                body=error_msg,
+                transient_for=self,
+            )
+            dialog.add_response("close", "Close")
+            dialog.add_response("copy", "Copy Error")
+            dialog.set_response_appearance("close", Adw.ResponseAppearance.SUGGESTED)
+
+            def on_response(dlg, response):
+                if response == "copy":
+                    cb = self.get_clipboard()
+                    cb.set(error_msg)
+                    self.show_toast("Error copied to clipboard")
+                dlg.close()
+
+            dialog.connect("response", on_response)
+            dialog.present()
 
 
 
@@ -2609,11 +2625,20 @@ def main() -> int:
 
     setup_logging(verbose=args.verbose)
     
+    from .error_report import setup_crash_handler
+    setup_crash_handler()
+    
     from gi.repository import GLib
 
-    def log_writer(log_level, fields, *args):
-        # Depending on PyGObject version, args may contain (length, user_data) or just (user_data,)
-        user_data = args[-1] if args else None
+    def log_writer(*args):
+        # Depending on PyGObject version, args may contain (log_level, fields, length, user_data) 
+        # or (log_level, fields, user_data)
+        if len(args) < 2:
+            return GLib.LogWriterOutput.UNHANDLED
+            
+        log_level = args[0]
+        fields = args[1]
+        user_data = args[-1] if len(args) > 2 else None
         
         message = ""
         domain = ""
@@ -2638,7 +2663,10 @@ def main() -> int:
         try:
             return GLib.log_writer_default(log_level, fields, user_data)
         except TypeError:
-            return GLib.log_writer_default(log_level, fields)
+            try:
+                return GLib.log_writer_default(log_level, fields)
+            except Exception:
+                return GLib.LogWriterOutput.UNHANDLED
         
     try:
         GLib.log_set_writer_func(log_writer, None)

@@ -3,8 +3,8 @@ Firewall configuration utility for linux-iprojection.
 Automatically detects and configures UFW or firewalld to allow necessary ports.
 """
 
-import subprocess
 import logging
+import subprocess
 
 log = logging.getLogger(__name__)
 

@@ -1,3 +1,13 @@
+linux-iprojection (1.4.0-1) unstable; urgency=medium
+
+  * Bug fixes for log_writer TypeError on some PyGObject versions.
+  * Added Adw.AlertDialog support.
+  * Added enterprise-grade automated GitHub crash reporting.
+  * GStreamer Caps negotiation fixed for VA-API (vah264enc) and NVENC.
+  * Screen capture resolution dynamically bounded to 1080p for projector hardware limits.
+
+ -- John Varghese (J0X) <john@example.com>  Wed, 23 Sep 2026 00:00:00 +0000
+
 linux-iprojection (1.1.0-1) unstable; urgency=medium
 
   * Initial release of iProjection (Unofficial) for Linux.

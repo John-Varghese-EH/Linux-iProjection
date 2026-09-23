@@ -3,8 +3,8 @@
   <id>dev.linux_iprojection.LinuxIProjection</id>
   <name>iProjection (Unofficial)</name>
   <summary>Control and cast to Epson projectors from Linux</summary>
-  <metadata_license>MIT</metadata_license>
-  <project_license>MIT</project_license>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
   <developer_name>John Varghese (J0X)</developer_name>
   <description>
     <p>iProjection (Unofficial) (linux-iprojection) is a native Linux application built by John Varghese (J0X) to control and cast to Epson projectors seamlessly via the ESC/VP.net and EShare protocols.</p>
@@ -19,6 +19,18 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.4.0" date="2026-09-23">
+      <description>
+        <p>Enterprise error reporting and bug fixes.</p>
+        <ul>
+          <li>Fixed GStreamer caps negotiation for VA-API and NVENC hardware encoders.</li>
+          <li>Bounded screen capture resolution to 1080p to fit projector hardware limits.</li>
+          <li>Fixed crash on start (log_writer TypeError) affecting some distros.</li>
+          <li>Added automated crash reporting with one-click GitHub issue generation.</li>
+          <li>Improved libadwaita dialog compatibility (Adw.AlertDialog).</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.2.0" date="2026-07-24">
       <description>
         <p>Initial release of iProjection (Unofficial).</p>

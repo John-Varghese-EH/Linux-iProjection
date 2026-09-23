@@ -8,7 +8,7 @@ import dataclasses
 import json
 import sys
 
-from .cast import CastTarget, RtpUdpSink, ScreenCaster, TEST_PATTERNS
+from .cast import TEST_PATTERNS, CastTarget, RtpUdpSink, ScreenCaster
 from .client import ProjectorClient, wake_on_lan
 from .config import MacroStore
 from .discovery import discover_all

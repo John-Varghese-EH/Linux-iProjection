@@ -275,7 +275,6 @@ class FakePJLinkServer:
         try:
             # Send greeting
             if self.password:
-                import hashlib
                 salt = "abcd1234"
                 writer.write(f"%1PJLINK 1 {salt}\r".encode())
             else:
@@ -284,7 +283,7 @@ class FakePJLinkServer:
 
             if self.password:
                 # Read and validate auth hash
-                auth_line = await asyncio.wait_for(reader.readline(), timeout=5.0)
+                _ = await asyncio.wait_for(reader.readline(), timeout=5.0)
                 # For testing, just accept any auth
 
             # Command loop
