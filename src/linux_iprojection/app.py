@@ -2656,11 +2656,13 @@ class EpsonCtlApp(Adw.Application):
                 box-shadow: 0 2px 8px alpha(black, 0.2);
             }
         """.encode('utf-8'))
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(),
-            css_provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-        )
+        display = Gdk.Display.get_default()
+        if display is not None:
+            Gtk.StyleContext.add_provider_for_display(
+                display,
+                css_provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+            )
 
         # Theme follows system by default
         config = load_config()

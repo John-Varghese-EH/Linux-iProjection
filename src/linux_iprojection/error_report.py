@@ -18,6 +18,7 @@ def get_system_info() -> str:
     info.append(f"Python: {platform.python_version()}")
     
     try:
+        gi.require_version("Gst", "1.0")
         from gi.repository import Gst
         if not Gst.is_initialized():
             Gst.init(None)
@@ -75,6 +76,14 @@ def show_crash_dialog(exc_type, exc_value, exc_traceback):
     
     app = Gio.Application.get_default()
     window = app.get_active_window() if app else None
+
+    # Do not attempt to show a GUI dialog if running headless (e.g. CI)
+    try:
+        from gi.repository import Gdk
+        if Gdk.Display.get_default() is None:
+            sys.exit(1)
+    except Exception:
+        sys.exit(1)
 
     # Handle both old and new Adwaita dialog APIs
     if hasattr(Adw, "AlertDialog"):

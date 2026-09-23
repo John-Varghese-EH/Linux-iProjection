@@ -30,7 +30,7 @@ jobs:
 
     - name: Compile GResource
       run: |
-        make run
+        glib-compile-resources --sourcedir=data data/linux_iprojection.gresource.xml --target=data/linux_iprojection.gresource
         
     - name: Build Python packages (Wheel & Source)
       run: .venv/bin/python -m build
