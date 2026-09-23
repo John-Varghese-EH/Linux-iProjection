@@ -9,7 +9,7 @@ license=('AGPL3')
 depends=('python' 'python-gobject' 'python-zeroconf' 'gtk4' 'libadwaita')
 makedepends=('python-build' 'python-installer' 'python-wheel' 'python-setuptools')
 source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/$pkgname-$_srcver.tar.gz")
-sha256sums=('dc8408ce6adbaae044cf090a3d860bb67f48f38229b17419e4965760cf9e27ba')
+sha256sums=('1f2c69035a07afd0dafc5a7c89af66999f3721e75fb2e6ed1689f47560b617e4')
 
 build() {
   cd "$srcdir/$pkgname-$_srcver"

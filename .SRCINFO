@@ -15,6 +15,6 @@ pkgbase = linux-iprojection
 	depends = gtk4
 	depends = libadwaita
 	source = linux-iprojection-1.4.0.tar.gz::https://github.com/John-Varghese-EH/Linux-iProjection/releases/download/v1.4.0/linux-iprojection-1.4.0.tar.gz
-	sha256sums = dc8408ce6adbaae044cf090a3d860bb67f48f38229b17419e4965760cf9e27ba
+	sha256sums = 1f2c69035a07afd0dafc5a7c89af66999f3721e75fb2e6ed1689f47560b617e4
 
 pkgname = linux-iprojection
