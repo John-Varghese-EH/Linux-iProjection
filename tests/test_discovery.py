@@ -6,7 +6,7 @@ Tests use mocked sockets and zeroconf - no real network needed.
 
 import asyncio
 import ipaddress
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
 
@@ -14,6 +14,8 @@ from linux_iprojection.discovery import (
     HTTP_KEYWORDS,
     SERVICE_TYPES,
     DiscoveredDevice,
+    _get_arp_neighbor_ips,
+    _iface_is_up,
     _local_ipv4_networks,
     discover_by_scan,
 )
@@ -125,3 +127,29 @@ def test_local_ipv4_networks():
     for net in networks:
         assert isinstance(net, ipaddress.IPv4Network)
         assert 8 <= net.prefixlen <= 32
+
+
+@pytest.mark.parametrize(
+    "state, up",
+    [("up", True), ("unknown", True), ("down", False), ("lowerlayerdown", False),
+     ("notpresent", False), ("dormant", False)],
+)
+def test_iface_is_up(state, up):
+    """Interfaces are dropped by their operstate; unknown ones are kept."""
+    with patch("builtins.open", mock_open(read_data=state + "\n")):
+        assert _iface_is_up("eth0") is up
+    with patch("builtins.open", side_effect=FileNotFoundError):
+        assert _iface_is_up("eth0") is True
+
+
+def test_arp_neighbors_skip_down_interfaces():
+    """ARP entries of interfaces that are not up are not probed."""
+    arp = (
+        "IP address       HW type     Flags       HW address            Mask     Device\n"
+        "192.168.1.10     0x1         0x2         00:11:22:33:44:55     *        eth0\n"
+        "10.0.0.20        0x1         0x6         00:11:22:33:44:66     *        eth1\n"
+        "192.168.1.11     0x1         0x0         00:00:00:00:00:00     *        eth0\n"
+    )
+    with patch("builtins.open", mock_open(read_data=arp)), \
+         patch("linux_iprojection.discovery._iface_is_up", side_effect=lambda name: name == "eth0"):
+        assert _get_arp_neighbor_ips() == {"192.168.1.10"}
