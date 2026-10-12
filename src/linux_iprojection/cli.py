@@ -232,7 +232,7 @@ async def _keystone(args):
 
 async def _raw(args):
     async with ProjectorClient(args.ip, "eps") as client:
-        response = await client.send_command(args.command)
+        response = await client.send_command(args.raw_command)
         print(f"Response: {response}")
 
 
@@ -373,7 +373,7 @@ async def _test_pattern(args):
 async def _pjlink(args):
     """Send a PJLink command to the projector."""
     async with PJLinkController(args.ip, port=args.port, password=args.password) as ctl:
-        if args.value == "?" and args.command.upper() == "STATUS":
+        if args.value == "?" and args.pjlink_command.upper() == "STATUS":
             status = await ctl.query_status()
             print(f"PJLink Status for {args.ip}:")
             print(f"  Power:        {status.power_label}")
@@ -388,7 +388,7 @@ async def _pjlink(args):
             if status.errors:
                 print(f"  Errors:       {', '.join(status.errors)}")
         else:
-            resp = await ctl.send_raw(args.command, args.value)
+            resp = await ctl.send_raw(args.pjlink_command, args.value)
             print(f"Response: {resp}")
 
 
@@ -564,7 +564,7 @@ Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
 
     # Raw
     raw_parser = subparsers.add_parser("raw", help="Send raw command")
-    raw_parser.add_argument("command", help="Raw ESC/VP.net command")
+    raw_parser.add_argument("raw_command", metavar="command", help="Raw ESC/VP.net command")
     raw_parser.add_argument("ip", help="IP address of the projector")
 
     # Info
@@ -618,7 +618,7 @@ Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
     # PJLink
     pjlink_parser = subparsers.add_parser("pjlink", help="Send PJLink commands")
     pjlink_parser.add_argument("ip", help="IP address of the projector")
-    pjlink_parser.add_argument("command", help="PJLink command (e.g. POWR, INPT, AVMT, LAMP, ERST, NAME, INF1, INF2)")
+    pjlink_parser.add_argument("pjlink_command", metavar="command", help="PJLink command (e.g. POWR, INPT, AVMT, LAMP, ERST, NAME, INF1, INF2)")
     pjlink_parser.add_argument("value", nargs="?", default="?", help="Command value (default: ? for query)")
     pjlink_parser.add_argument("--password", default="", help="PJLink password")
     pjlink_parser.add_argument("--port", type=int, default=4352, help="PJLink port (default: 4352)")
