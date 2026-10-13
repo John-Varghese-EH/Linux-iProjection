@@ -1543,6 +1543,9 @@ class MainWindow(Adw.ApplicationWindow):
         # Also merge with persisted devices and map aliases
         persisted = self._device_store.load_devices()
         persisted_dict = {pd.get("address"): pd for pd in persisted}
+        persisted_addrs = {
+            _normalize_ip(pd.get("address") or pd.get("ip") or "") for pd in persisted
+        }
 
         clean_devices = []
         seen_addrs = set()
@@ -1560,10 +1563,11 @@ class MainWindow(Adw.ApplicationWindow):
                 d.alias = persisted_dict[norm_addr].get("alias")
             clean_devices.append(d)
             
-            # Auto-discovery toast tracking
+            # Auto-discovery toast tracking: new is a projector that was
+            # neither seen in this run nor saved in an earlier one.
             if norm_addr not in self._known_device_addrs:
                 self._known_device_addrs.add(norm_addr)
-                if d.source != "persisted":
+                if d.source != "persisted" and norm_addr not in persisted_addrs:
                     new_count += 1
                     new_name = d.alias or d.name or norm_addr
 
