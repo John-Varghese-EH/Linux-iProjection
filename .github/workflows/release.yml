@@ -50,6 +50,13 @@ jobs:
         flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build-dir packaging/flatpak/dev.linux_iprojection.LinuxIProjection.yml
         flatpak build-bundle repo dist/linux-iprojection-linux.flatpak dev.linux_iprojection.LinuxIProjection
         
+    - name: Generate Checksums
+      run: |
+        cd dist
+        sha256sum * > SHA256SUMS.txt
+        echo "=== Release Artifact Checksums ==="
+        cat SHA256SUMS.txt
+
     - name: Create Advanced GitHub Release
       uses: softprops/action-gh-release@v3
       with:
@@ -58,6 +65,7 @@ jobs:
           dist/*.tar.gz
           dist/*.deb
           dist/*.flatpak
+          dist/SHA256SUMS.txt
         generate_release_notes: true
         name: "iProjection for Linux Release ${{ github.ref_name }}"
         body: |
@@ -140,3 +148,39 @@ jobs:
           *Built with ❤️ by John Varghese (J0X) | Fueled by ☕️ and rainy days.*
           
           **Full Changelog**: https://github.com/John-Varghese-EH/Linux-iProjection/compare/${{ github.event.before }}...${{ github.ref_name }}
+
+    - name: Publish to Arch User Repository (AUR)
+      if: env.AUR_SSH_PRIVATE_KEY != ''
+      env:
+        AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+      run: |
+        VERSION="${GITHUB_REF_NAME#v}"
+        TARBALL="dist/linux-iprojection-${VERSION}.tar.gz"
+        if [ -f "$TARBALL" ]; then
+          SHA256=$(sha256sum "$TARBALL" | awk '{print $1}')
+          echo "Updating AUR for version $VERSION with SHA256: $SHA256"
+
+          mkdir -p ~/.ssh
+          echo "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur_key
+          chmod 600 ~/.ssh/aur_key
+          ssh-keyscan -H aur.archlinux.org >> ~/.ssh/known_hosts
+
+          git clone ssh://aur@aur.archlinux.org/linux-iprojection.git /tmp/aur
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
+          sed -i "s/^_srcver=.*/_srcver=${VERSION}/" PKGBUILD
+          sed -i "s/^sha256sums=.*/sha256sums=('${SHA256}')/" PKGBUILD
+
+          cp PKGBUILD /tmp/aur/
+          cd /tmp/aur
+          sed -i "s/pkgver = .*/pkgver = ${VERSION}/" .SRCINFO
+          sed -i "s/source = linux-iprojection-.*::/source = linux-iprojection-${VERSION}.tar.gz::/" .SRCINFO
+          sed -i "s/download\/v[^\/]*\//download\/v${VERSION}\//" .SRCINFO
+          sed -i "s/linux-iprojection-.*\.tar\.gz/linux-iprojection-${VERSION}.tar.gz/" .SRCINFO
+          sed -i "s/sha256sums = .*/sha256sums = ${SHA256}/" .SRCINFO
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add PKGBUILD .SRCINFO
+          git commit -m "Update to ${GITHUB_REF_NAME}" || echo "No changes to commit"
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key" git push origin master || echo "AUR push failed or skipped"
+        fi
