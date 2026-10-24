@@ -1180,6 +1180,17 @@ class MainWindow(Adw.ApplicationWindow):
         codec_row.connect("notify::selected", self._on_stream_codec_changed)
         stream_group.add(codec_row)
 
+        res_row = Adw.ComboRow(
+            title="Target Resolution",
+            subtitle="Match projector native resolution (e.g. WXGA for classroom models)",
+        )
+        res_model = Gtk.StringList.new(["1080p (1920×1080)", "720p (1280×720)", "WXGA (1280×800)", "XGA (1024×768)"])
+        res_row.set_model(res_model)
+        res_map = {"1080p": 0, "720p": 1, "wxga": 2, "xga": 3}
+        res_row.set_selected(res_map.get(getattr(self._config, "stream_resolution", "1080p"), 0))
+        res_row.connect("notify::selected", self._on_stream_resolution_changed)
+        stream_group.add(res_row)
+
         general_page.add(stream_group)
 
         # Appearance group
@@ -1397,6 +1408,13 @@ class MainWindow(Adw.ApplicationWindow):
         idx = row.get_selected()
         self._config.stream_codec = "jpeg" if idx == 1 else "h264"
         save_config(self._config)
+
+    def _on_stream_resolution_changed(self, row, _pspec) -> None:
+        idx = row.get_selected()
+        res_list = ["1080p", "720p", "wxga", "xga"]
+        if 0 <= idx < len(res_list):
+            self._config.stream_resolution = res_list[idx]
+            save_config(self._config)
 
     def _apply_theme(self) -> None:
         sm = Adw.StyleManager.get_default()
@@ -1667,6 +1685,65 @@ class MainWindow(Adw.ApplicationWindow):
         dialog.connect("response", on_response)
         dialog.present(self)
 
+    def _get_projector_password(self, host: str) -> str:
+        """Retrieve stored password or connection keyword for a projector host."""
+        if hasattr(self, "_device_store"):
+            pwd = self._device_store.get_password(host)
+            if pwd:
+                return pwd
+        return getattr(self._config, "pjlink_password", "") or ""
+
+    def _set_projector_password(self, host: str, password: str) -> None:
+        """Save password or keyword for a projector in the device store."""
+        if hasattr(self, "_device_store"):
+            self._device_store.set_password(host, password)
+
+    def _create_client(self, host: str, device_type: str = "projector") -> ProjectorClient:
+        """Create a ProjectorClient initialized with the projector's password/keyword."""
+        pwd = self._get_projector_password(host)
+        return ProjectorClient(host, device_type=device_type, password=pwd)
+
+    def _prompt_for_projector_auth(self, host: str, on_success=None) -> None:
+        """Display an authentication modal dialog for 4-digit keyword or password."""
+        dialog = Adw.MessageDialog(
+            transient_for=self,
+            heading="Projector Authentication Required",
+            body=f"Projector at {host} requires a connection keyword or password.\nEnter the 4-digit keyword displayed on the projector screen or password:",
+        )
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("save", "Connect & Save")
+        dialog.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        box.set_margin_top(12)
+        box.set_margin_bottom(12)
+        box.set_margin_start(16)
+        box.set_margin_end(16)
+
+        entry = Gtk.PasswordEntry()
+        entry.set_show_peek_icon(True)
+        entry.set_placeholder_text("4-digit keyword or password")
+        existing_pwd = self._get_projector_password(host)
+        if existing_pwd:
+            entry.set_text(existing_pwd)
+        box.append(entry)
+
+        dialog.set_extra_child(box)
+
+        def on_response(_d, response_id):
+            if response_id == "save":
+                pwd = entry.get_text().strip()
+                if pwd:
+                    self._set_projector_password(host, pwd)
+                    self.show_toast("Password saved")
+                    if on_success:
+                        on_success()
+                    else:
+                        self._refresh_status()
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
     def on_device_selected(self, _listbox, row: DeviceRow) -> None:
         self.current_device = row.device
         self._selected_row = row  # Track for status dot updates
@@ -1691,7 +1768,7 @@ class MainWindow(Adw.ApplicationWindow):
         host = self.current_device.address
 
         async def query():
-            async with ProjectorClient(host, self.current_device.device_type) as client:
+            async with self._create_client(host, self.current_device.device_type) as client:
                 return await client.get_status()
 
         @_run_async(query())
@@ -1699,6 +1776,13 @@ class MainWindow(Adw.ApplicationWindow):
             self._latest_status = status
             if error:
                 log.warning("Status query failed: %s", error)
+                from .protocol import ProjectorAuthRequiredError
+                if isinstance(error, ProjectorAuthRequiredError) or any(
+                    phrase in str(error).lower()
+                    for phrase in ("requires a password", "requires a pjlink password", "connection keyword")
+                ):
+                    self._prompt_for_projector_auth(host)
+                    return
                 self.power_row.set_subtitle("Unreachable")
                 if hasattr(self, '_selected_row') and self._selected_row:
                     self._selected_row.set_online(False)
@@ -2022,7 +2106,7 @@ class MainWindow(Adw.ApplicationWindow):
         device_type = self.current_device.device_type
 
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 if state:
                     await client.power_on()
                 else:
@@ -2044,7 +2128,7 @@ class MainWindow(Adw.ApplicationWindow):
         device_type = self.current_device.device_type
 
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 await client.set_mute(state)
 
         @_run_async(cmd())
@@ -2060,7 +2144,7 @@ class MainWindow(Adw.ApplicationWindow):
         device_type = self.current_device.device_type
 
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 await client.set_freeze(state)
 
         @_run_async(cmd())
@@ -2076,7 +2160,7 @@ class MainWindow(Adw.ApplicationWindow):
         enabled = switch.get_active()
 
         async def _run():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 if hasattr(client, "set_moderator_mode"):
                     await client.set_moderator_mode(enabled)
                 else:
@@ -2096,7 +2180,7 @@ class MainWindow(Adw.ApplicationWindow):
         enabled = switch.get_active()
 
         async def _run():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 if hasattr(client, "set_whiteboard_sharing"):
                     await client.set_whiteboard_sharing(enabled)
                 else:
@@ -2116,7 +2200,7 @@ class MainWindow(Adw.ApplicationWindow):
         enabled = switch.get_active()
 
         async def _run():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 if hasattr(client, "set_fcn"):
                     await client.set_fcn(enabled)
                 else:
@@ -2135,7 +2219,7 @@ class MainWindow(Adw.ApplicationWindow):
         device_type = self.current_device.device_type
 
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 await client.send_key(key_code)
 
         @_run_async(cmd())
@@ -2150,7 +2234,7 @@ class MainWindow(Adw.ApplicationWindow):
         device_type = self.current_device.device_type
 
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 await client.set_volume(int(value))
 
         @_run_async(cmd())
@@ -2174,7 +2258,7 @@ class MainWindow(Adw.ApplicationWindow):
         device_type = self.current_device.device_type
 
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 await client.set_source(source)
 
         @_run_async(cmd())
@@ -2196,7 +2280,7 @@ class MainWindow(Adw.ApplicationWindow):
         device_type = self.current_device.device_type
 
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 await client.set_color_mode(mode)
 
         @_run_async(cmd())
@@ -2216,7 +2300,7 @@ class MainWindow(Adw.ApplicationWindow):
         device_type = self.current_device.device_type
 
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 await client.set_aspect_ratio(aspect)
 
         @_run_async(cmd())
@@ -2236,7 +2320,7 @@ class MainWindow(Adw.ApplicationWindow):
         device_type = self.current_device.device_type
 
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 await client.set_luminance(lum)
 
         @_run_async(cmd())
@@ -2274,19 +2358,27 @@ class MainWindow(Adw.ApplicationWindow):
         def start_cast():
             try:
                 from .cast import CastTarget, RtpUdpSink, ScreenCaster
+                from .config import RESOLUTION_PRESETS
+                res_preset = getattr(self._config, "stream_resolution", "1080p")
+                w, h = RESOLUTION_PRESETS.get(res_preset, (1920, 1080))
+                fps = getattr(self._config, "stream_fps", 30)
 
                 target = CastTarget(
                     host=device.address,
                     port=getattr(device, "stream_port", 5004),
                     audio_port=getattr(device, "audio_port", 5006),
                     name=device.name or device.address,
+                    password=self._get_projector_password(device.address),
+                    width=w,
+                    height=h,
+                    fps=fps,
                 )
 
                 # Auto-switch projector input to LAN (SOURCE 53)
                 # This is what the Windows iProjection does before streaming
                 try:
                     async def switch_to_lan():
-                        async with ProjectorClient(device.address, device.device_type) as client:
+                        async with self._create_client(device.address, device.device_type) as client:
                             await client.set_source("53")  # LAN/Network input
                     asyncio.run(switch_to_lan())
                 except Exception as ex:
@@ -2306,6 +2398,9 @@ class MainWindow(Adw.ApplicationWindow):
                     audio_enabled=audio_enabled,
                     encoder_preset=enc,
                     stream_quality=self._config.stream_quality,
+                    width=w,
+                    height=h,
+                    fps=fps,
                     on_stats=self._on_cast_stats,
                     on_error=self._on_cast_error,
                 )
@@ -2342,6 +2437,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.cast_btn.set_label("Start Casting")
         if error_msg in ("Screen sharing cancelled", "User dismissed the screen sharing dialog", "Screen sharing cancelled by user"):
             self.show_toast("Screen sharing cancelled")
+        elif "password" in error_msg.lower() or "keyword" in error_msg.lower():
+            if self.current_device:
+                self._prompt_for_projector_auth(self.current_device.address)
         else:
             self._show_error_dialog("Casting Failed", error_msg)
 
@@ -2390,7 +2488,7 @@ class MainWindow(Adw.ApplicationWindow):
         device_type = self.current_device.device_type
         
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 await client.set_brightness(val)
 
         @_run_async(cmd())
@@ -2406,7 +2504,7 @@ class MainWindow(Adw.ApplicationWindow):
         device_type = self.current_device.device_type
         
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 await client.set_contrast(val)
 
         @_run_async(cmd())
@@ -2422,7 +2520,7 @@ class MainWindow(Adw.ApplicationWindow):
         device_type = self.current_device.device_type
         
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 await client.set_sharpness(val)
 
         @_run_async(cmd())
@@ -2438,7 +2536,7 @@ class MainWindow(Adw.ApplicationWindow):
         device_type = self.current_device.device_type
         
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 await client.set_keystone(axis, val)
 
         @_run_async(cmd())
@@ -2479,7 +2577,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.show_toast(f"Running macro '{macro_name}'...")
         
         async def cmd():
-            async with ProjectorClient(host, device_type) as client:
+            async with self._create_client(host, device_type) as client:
                 for step in macro.steps:
                     method = getattr(client, step.command, None)
                     if method:
@@ -2576,7 +2674,7 @@ class MainWindow(Adw.ApplicationWindow):
                 # Attempt to switch projector source to LAN automatically
                 try:
                     async def switch_lan():
-                        async with ProjectorClient(self.current_device.address, self.current_device.device_type) as client:
+                        async with self._create_client(self.current_device.address, self.current_device.device_type) as client:
                             await client.set_source("53")
                     asyncio.run(switch_lan())
                 except Exception as ex:

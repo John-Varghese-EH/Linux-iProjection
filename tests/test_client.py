@@ -10,8 +10,11 @@ async def test_projector_client_init():
 
 @pytest.mark.asyncio
 async def test_wake_on_lan():
-    # Mostly ensuring it doesn't crash
-    wake_on_lan("00:11:22:33:44:55")
+    # Direct MAC address format
+    assert wake_on_lan("00:11:22:33:44:55") is True
+    assert wake_on_lan("00-11-22-33-44-55") is True
+    # Non-existent IP address should fail cleanly without crashing
+    assert wake_on_lan("192.0.2.254") is False
 
 @pytest.mark.asyncio
 async def test_client_status_deduplication(mocker):

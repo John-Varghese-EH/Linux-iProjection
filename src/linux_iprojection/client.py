@@ -42,44 +42,49 @@ class UnifiedStatus:
 
 
 def wake_on_lan(ip: str) -> bool:
-    """Attempt to send a WoL magic packet to the given IP by resolving its MAC."""
+    """Attempt to send a WoL magic packet to the given IP or MAC address."""
     try:
-        # Ping to ensure ARP table is populated
-        subprocess.run(["ping", "-c", "1", "-W", "1", ip], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
         mac = None
-        
-        # Strategy 1: ip neighbor (modern Linux)
-        try:
-            result = subprocess.run(["ip", "neighbor", "show", ip], capture_output=True, text=True)
-            match = re.search(r"([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})", result.stdout)
-            if match:
-                mac = match.group(0)
-        except FileNotFoundError:
-            pass
-        
-        # Strategy 2: arp -n (legacy)
-        if not mac:
+        target = ip.strip()
+
+        # Check if the argument is already a MAC address
+        if re.match(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$", target):
+            mac = target
+        else:
+            # Ping to ensure ARP table is populated
+            subprocess.run(["ping", "-c", "1", "-W", "1", target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            # Strategy 1: ip neighbor (modern Linux)
             try:
-                result = subprocess.run(["arp", "-n", ip], capture_output=True, text=True)
+                result = subprocess.run(["ip", "neighbor", "show", target], capture_output=True, text=True)
                 match = re.search(r"([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})", result.stdout)
                 if match:
                     mac = match.group(0)
             except FileNotFoundError:
                 pass
-        
-        # Strategy 3: /proc/net/arp (direct)
-        if not mac:
-            try:
-                with open("/proc/net/arp", "r") as f:
-                    for line in f.readlines()[1:]:
-                        parts = line.split()
-                        if len(parts) >= 4 and parts[0] == ip and parts[3] != "00:00:00:00:00:00":
-                            mac = parts[3]
-                            break
-            except OSError:
-                pass
-        
+
+            # Strategy 2: arp -n (legacy)
+            if not mac:
+                try:
+                    result = subprocess.run(["arp", "-n", target], capture_output=True, text=True)
+                    match = re.search(r"([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})", result.stdout)
+                    if match:
+                        mac = match.group(0)
+                except FileNotFoundError:
+                    pass
+
+            # Strategy 3: /proc/net/arp (direct)
+            if not mac:
+                try:
+                    with open("/proc/net/arp", "r") as f:
+                        for line in f.readlines()[1:]:
+                            parts = line.split()
+                            if len(parts) >= 4 and parts[0] == target and parts[3] != "00:00:00:00:00:00":
+                                mac = parts[3]
+                                break
+                except OSError:
+                    pass
+
         if not mac:
             log.warning("Could not resolve MAC address for %s", ip)
             return False
@@ -88,9 +93,24 @@ def wake_on_lan(ip: str) -> bool:
         mac_bytes = bytes.fromhex(mac.replace(":", ""))
         magic_packet = b"\xff" * 6 + mac_bytes * 16
 
+        destinations = [("255.255.255.255", 9), ("255.255.255.255", 7)]
+        try:
+            from .discovery import _local_ipv4_networks
+            for net in _local_ipv4_networks():
+                bcast = str(net.broadcast_address)
+                destinations.append((bcast, 9))
+                destinations.append((bcast, 7))
+        except Exception:
+            pass
+
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            s.sendto(magic_packet, ("255.255.255.255", 9))
+            for dest in destinations:
+                try:
+                    s.sendto(magic_packet, dest)
+                except OSError:
+                    pass
+
         log.info("Sent WoL magic packet to %s for %s", mac, ip)
         return True
     except Exception as e:
@@ -101,14 +121,15 @@ def wake_on_lan(ip: str) -> bool:
 class ProjectorClient:
     """Unified facade for ESC/VP.net and PJLink clients."""
 
-    def __init__(self, host: str, device_type: str = "projector", port: int | None = None):
+    def __init__(self, host: str, device_type: str = "projector", port: int | None = None, password: str = ""):
         self.host = host
         self.device_type = device_type
         self.port = port
+        self.password = password
         if device_type == "pjlink_projector":
-            self._client = PJLinkController(host, port=port or 4352)
+            self._client = PJLinkController(host, port=port or 4352, password=password)
         else:
-            self._client = EscVpNetClient(host, port=port or 3629)
+            self._client = EscVpNetClient(host, port=port or 3629, password=password)
 
     async def __aenter__(self):
         await self._client.connect()

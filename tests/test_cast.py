@@ -111,3 +111,62 @@ async def test_screencaster_x11_fallback_on_portal_error(monkeypatch):
     assert caster.user_cancelled is False
     caster.stop()
 
+
+def test_rtp_udp_sink_enterprise_buffer_and_mtu():
+    target = CastTarget(host="192.168.1.10", port=5004)
+    sink = RtpUdpSink(mtu=1400, buffer_size=524288)
+    bin_str = sink.build_sink_bin(target)
+    assert "mtu=1400" in bin_str
+    assert "buffer-size=524288" in bin_str
+
+
+def test_jpeg_rtp_sink_enterprise_buffer_and_mtu():
+    target = CastTarget(host="192.168.1.10", port=5004)
+    sink = JpegRtpSink(mtu=1400, buffer_size=524288)
+    bin_str = sink.build_sink_bin(target)
+    assert "mtu=1400" in bin_str
+    assert "buffer-size=524288" in bin_str
+
+
+def test_build_pipeline_custom_resolution():
+    caster = ScreenCaster(sink=RtpUdpSink(), audio_enabled=False)
+    # Test WXGA 1280x800 @ 60fps
+    target = CastTarget(
+        host="192.168.1.50",
+        port=5004,
+        width=1280,
+        height=800,
+        fps=60,
+    )
+    pipeline = caster._build_pipeline(target, node_id=15, is_file=False)
+    assert "video/x-raw,width=1280,height=800,framerate=60/1" in pipeline
+
+
+@pytest.mark.asyncio
+async def test_prepare_projector_for_stream_with_password():
+    caster = ScreenCaster(sink=RtpUdpSink())
+    target = CastTarget(
+        host="192.168.1.99",
+        port=5004,
+        password="4321",
+    )
+
+    mock_client = mock.AsyncMock()
+    mock_client.get_power.return_value = "04"  # Standby
+    mock_client.power_on = mock.AsyncMock()
+    mock_client.set_source = mock.AsyncMock()
+
+    class MockContextManager:
+        async def __aenter__(self):
+            return mock_client
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    with mock.patch("linux_iprojection.protocol.EscVpNetClient", return_value=MockContextManager()) as mock_cls:
+        await caster._prepare_projector_for_stream(target)
+        mock_cls.assert_called_with("192.168.1.99", password="4321")
+        mock_client.power_on.assert_awaited_once()
+        mock_client.set_source.assert_awaited_once()
+
+

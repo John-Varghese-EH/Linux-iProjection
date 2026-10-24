@@ -423,11 +423,19 @@ async def discover_eemp(timeout: float = 2.0) -> list[DiscoveredDevice]:
                 results.append(device)
 
     try:
-        transport, protocol = await loop.create_datagram_endpoint(
-            EempProtocol,
-            local_addr=("0.0.0.0", 0),
-            allow_broadcast=True,
-        )
+        try:
+            transport, protocol = await loop.create_datagram_endpoint(
+                EempProtocol,
+                local_addr=("0.0.0.0", EEMP_RESPONSE_PORT),
+                allow_broadcast=True,
+            )
+        except OSError:
+            # Fall back to ephemeral port if 3621 is occupied
+            transport, protocol = await loop.create_datagram_endpoint(
+                EempProtocol,
+                local_addr=("0.0.0.0", 0),
+                allow_broadcast=True,
+            )
 
         try:
             # Broadcast on all interfaces

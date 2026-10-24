@@ -27,6 +27,8 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
+from .protocol import ProjectorAuthRequiredError
+
 log = logging.getLogger(__name__)
 
 # ── Protocol constants ────────────────────────────────────────────────────────
@@ -124,9 +126,16 @@ class PJLinkController:
         self._reader: Optional[asyncio.StreamReader] = None
         self._writer: Optional[asyncio.StreamWriter] = None
         self._auth_hash: str = ""  # MD5(salt+password) or ""
-        self._lock = asyncio.Lock()
+        self._lock: Optional[asyncio.Lock] = None
         self._keepalive_task: Optional[asyncio.Task] = None
         self.connected = False
+
+    @property
+    def lock(self) -> asyncio.Lock:
+        """Lazily initialize asyncio.Lock to avoid event-loop binding issues."""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     # ── Connection lifecycle ──────────────────────────────────────────────
 
@@ -152,7 +161,10 @@ class PJLinkController:
             parts = greeting.split()
             salt = parts[-1] if len(parts) >= 3 else ""
             if not self._password:
-                raise ConnectionError(f"Projector at {self._host} requires a PJLink password.")
+                raise ProjectorAuthRequiredError(
+                    f"Projector at {self._host} requires a PJLink password.",
+                    host=self._host,
+                )
             self._auth_hash = hashlib.md5((salt + self._password).encode("utf-8")).hexdigest()
             log.debug("PJLink auth hash computed (salt=%r)", salt)
         elif "PJLINK 0" in greeting:
@@ -285,13 +297,13 @@ class PJLinkController:
         if not self.connected or not self._writer:
             raise ConnectionError("Not connected to projector.")
 
-        async with self._lock:
+        async with self.lock:
             payload = f"{self._auth_hash}{self._prefix}{cmd} {value}\r"
             log.debug("→ PJLink %s: %r", self._host, payload)
-            self._writer.write(payload.encode("ascii"))
-            await self._writer.drain()
-
             try:
+                self._writer.write(payload.encode("ascii"))
+                await self._writer.drain()
+
                 resp_bytes = await asyncio.wait_for(
                     self._reader.readline(), timeout=COMMAND_TIMEOUT
                 )
@@ -301,6 +313,10 @@ class PJLinkController:
             except asyncio.TimeoutError:
                 log.warning("PJLink command %r timed out", cmd)
                 return ""
+            except (OSError, asyncio.IncompleteReadError) as exc:
+                log.warning("PJLink connection error during %r: %s", cmd, exc)
+                self.connected = False
+                raise ConnectionError(f"Connection lost to {self._host}: {exc}") from exc
 
     @staticmethod
     def _extract_value(resp: str) -> str:

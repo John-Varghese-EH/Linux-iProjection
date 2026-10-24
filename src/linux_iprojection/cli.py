@@ -37,8 +37,13 @@ async def _discover(_args):
         print(f"  - {d.address} : {name}{alias} [{d.device_type}]")
 
 
+def _make_client(args) -> ProjectorClient:
+    pwd = getattr(args, "password", "")
+    return ProjectorClient(args.ip, "eps", password=pwd)
+
+
 async def _status(args):
-    async with ProjectorClient(args.ip, "eps") as client:
+    async with _make_client(args) as client:
         status = await client.get_status()
         print(f"Status for {args.ip}:")
         print(f"  Power:      {'On' if status.power else 'Off'}")
@@ -56,7 +61,7 @@ async def _status(args):
 
 
 async def _power(args):
-    async with ProjectorClient(args.ip, "eps") as client:
+    async with _make_client(args) as client:
         if args.state.lower() == "on":
             await client.power_on()
         else:
@@ -274,30 +279,43 @@ async def _cast(args):
     """Start screen casting to the projector."""
     import signal
 
+    pwd = getattr(args, "password", "")
     if args.switch_source:
         print(f"Switching {args.ip} to LAN source...")
         try:
-            async with ProjectorClient(args.ip, "eps") as client:
+            async with ProjectorClient(args.ip, "eps", password=pwd) as client:
                 await client.set_source(Source.LAN)
         except Exception as e:
             print(f"Warning: could not switch source: {e}")
+
+    from .config import RESOLUTION_PRESETS
+    res_str = getattr(args, "resolution", "1080p")
+    w, h = RESOLUTION_PRESETS.get(res_str, (1920, 1080))
+    fps = getattr(args, "fps", 30)
 
     target = CastTarget(
         host=args.ip,
         port=args.video_port,
         audio_port=args.audio_port,
         name=args.ip,
+        password=pwd,
+        width=w,
+        height=h,
+        fps=fps,
     )
     sink = JpegRtpSink() if getattr(args, "codec", "h264") == "jpeg" else RtpUdpSink()
     caster = ScreenCaster(
         sink=sink,
         audio_enabled=not args.no_audio,
         stream_quality=args.quality,
+        width=w,
+        height=h,
+        fps=fps,
         on_stats=lambda s: None,
         on_error=lambda e: print(f"Stream error: {e}"),
     )
 
-    print(f"Starting screen cast to {args.ip}:{args.video_port} (quality={args.quality})...")
+    print(f"Starting screen cast to {args.ip}:{args.video_port} ({w}x{h}@{fps}fps, quality={args.quality})...")
     success = await caster.start(target)
     if not success:
         if getattr(caster, "user_cancelled", False):
@@ -578,6 +596,12 @@ Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
                              help="Stream quality preset")
     cast_parser.add_argument("--codec", choices=["h264", "jpeg"], default="h264",
                              help="Stream format: h264 (default) or jpeg (for legacy EasyMP models)")
+    cast_parser.add_argument("--password", "--keyword", dest="password", default="",
+                             help="Projector password or 4-digit connection keyword")
+    cast_parser.add_argument("--resolution", choices=["1080p", "720p", "wxga", "xga"], default="1080p",
+                             help="Stream target resolution preset (default: 1080p)")
+    cast_parser.add_argument("--fps", type=int, default=30, choices=[15, 24, 30, 60],
+                             help="Stream target framerate (default: 30)")
     cast_parser.add_argument("--switch-source", action="store_true", default=True,
                              help="Automatically switch projector to LAN source before casting (default: enabled)")
     cast_parser.add_argument("--no-switch-source", dest="switch_source", action="store_false",

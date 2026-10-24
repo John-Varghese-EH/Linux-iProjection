@@ -280,4 +280,115 @@ async def test_freeze_set_and_query(fake_server):
         await client.set_freeze(True)
         await client.set_freeze(False)
 
+
+@pytest.mark.asyncio
+async def test_lazy_lock_initialization():
+    """Lock property should create lock on first access in active loop."""
+    client = EscVpNetClient("127.0.0.1")
+    assert client._lock is None
+    lock = client.lock
+    assert lock is not None
+    assert client.lock is lock
+
+
+@pytest.mark.asyncio
+async def test_escvp_buffer_non_challenge_bytes():
+    """If server sends non-challenge bytes right after handshake, they must be buffered."""
+    import asyncio
+
+    async def handle_client(reader, writer):
+        # Read handshake
+        await reader.readexactly(16)
+        # Send handshake reply + immediately a prompt ':'
+        writer.write(b"ESC/VP.net\x10\x03\x00\x00\x00\x00:")
+        await writer.drain()
+
+        # Read command
+        line = await reader.readuntil(b"\r")
+        assert b"PWR?" in line
+        writer.write(b"PWR=01\r\n:")
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+
+    server = await asyncio.start_server(handle_client, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+
+    try:
+        async with EscVpNetClient("127.0.0.1", port=port) as client:
+            resp = await client.send("PWR?")
+            assert resp == "PWR=01"
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_escvp_password_auth_flow():
+    """Verify password auth challenge and response."""
+    import asyncio
+    import hashlib
+
+    salt = b"1234567890123456"
+    password = "secret_password"
+    expected_digest = hashlib.md5(salt + password.encode("utf-8")).hexdigest().encode("ascii")
+
+    async def handle_client(reader, writer):
+        await reader.readexactly(16)
+        # Send handshake + challenge
+        writer.write(b"ESC/VP.net\x10\x03\x00\x00\x00\x00")
+        writer.write(b"ESCA" + salt)
+        await writer.drain()
+
+        # Read MD5 response
+        auth_resp = await reader.readexactly(len(expected_digest))
+        assert auth_resp == expected_digest
+
+        # Read subsequent command
+        line = await reader.readuntil(b"\r")
+        assert b"PWR?" in line
+        writer.write(b"PWR=01\r\n:")
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+
+    server = await asyncio.start_server(handle_client, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+
+    try:
+        async with EscVpNetClient("127.0.0.1", port=port, password=password) as client:
+            resp = await client.send("PWR?")
+            assert resp == "PWR=01"
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_escvp_password_required_error():
+    """Server challenges password but none provided should raise ProjectorError."""
+    import asyncio
+
+    salt = b"1234567890123456"
+
+    async def handle_client(reader, writer):
+        await reader.readexactly(16)
+        writer.write(b"ESC/VP.net\x10\x03\x00\x00\x00\x00")
+        writer.write(b"ESCA" + salt)
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+
+    server = await asyncio.start_server(handle_client, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+
+    try:
+        with pytest.raises(ProjectorError, match="requires a password"):
+            async with EscVpNetClient("127.0.0.1", port=port):
+                pass
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
         

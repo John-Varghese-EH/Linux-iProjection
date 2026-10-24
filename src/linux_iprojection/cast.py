@@ -71,6 +71,10 @@ class CastTarget:
     port: int = 5004  # video RTP port
     audio_port: int = 5006  # audio RTP port
     name: str = ""  # display name for UI
+    password: str = ""  # connection password or 4-digit keyword
+    width: int = 1920
+    height: int = 1080
+    fps: int = 30
 
 
 # Sink abstraction
@@ -101,10 +105,14 @@ class CastSink(ABC):
 class RtpUdpSink(CastSink):
     """Production sink: RTP H.264 over UDP to the receiver."""
 
+    def __init__(self, mtu: int = 1400, buffer_size: int = 524288):
+        self.mtu = mtu
+        self.buffer_size = buffer_size
+
     def build_sink_bin(self, target: CastTarget) -> str:
         return (
-            f"rtph264pay config-interval=1 pt=96 ! "
-            f"udpsink host={target.host} port={target.port} sync=false"
+            f"rtph264pay config-interval=1 pt=96 mtu={self.mtu} ! "
+            f"udpsink host={target.host} port={target.port} buffer-size={self.buffer_size} sync=false"
         )
 
 
@@ -118,10 +126,14 @@ class FileDumpSink(CastSink):
 class JpegRtpSink(CastSink):
     """JPEG Rect-based sink for projectors not supporting H.264 RTP."""
 
+    def __init__(self, mtu: int = 1400, buffer_size: int = 524288):
+        self.mtu = mtu
+        self.buffer_size = buffer_size
+
     def build_sink_bin(self, target: CastTarget) -> str:
         return (
-            f"jpegenc quality=85 ! rtpjpegpay pt=26 ! "
-            f"udpsink host={target.host} port={target.port} sync=false"
+            f"jpegenc quality=85 ! rtpjpegpay pt=26 mtu={self.mtu} ! "
+            f"udpsink host={target.host} port={target.port} buffer-size={self.buffer_size} sync=false"
         )
 
 
@@ -389,6 +401,9 @@ class ScreenCaster:
         audio_enabled: bool = True,
         encoder_preset: EncoderPreset = EncoderPreset.AUTO,
         stream_quality: str = "balanced",
+        width: int = 1920,
+        height: int = 1080,
+        fps: int = 30,
         on_stats: Callable[[StreamStats], None] | None = None,
         on_error: Callable[[str], None] | None = None,
     ) -> None:
@@ -396,6 +411,9 @@ class ScreenCaster:
         self.audio_enabled = audio_enabled
         self.encoder_preset = encoder_preset
         self.stream_quality = stream_quality
+        self.width = width
+        self.height = height
+        self.fps = fps
         self.on_stats = on_stats
         self.on_error = on_error
 
@@ -576,10 +594,10 @@ class ScreenCaster:
         """
         try:
             from .protocol import EscVpNetClient, Source
-            async with EscVpNetClient(target.host) as client:
+            async with EscVpNetClient(target.host, password=target.password) as client:
                 try:
                     pwr = await client.get_power()
-                    if pwr == "00":
+                    if pwr in ("00", "04"):
                         log.info("Projector %s is in standby, powering on before streaming...", target.host)
                         await client.power_on()
                         await asyncio.sleep(1.5)
@@ -725,22 +743,24 @@ class ScreenCaster:
             sink = self.sink
         video_sink = sink.build_sink_bin(target)
 
+        # Determine target resolution and framerate
+        w = target.width if target.width > 0 else self.width
+        h = target.height if target.height > 0 else self.height
+        fps = target.fps if target.fps > 0 else self.fps
+
         # Video branch with proper caps negotiation
-        # Limits resolution to 1080p and framerate to 30fps for projector compatibility.
-        # Uses videoconvert before the encoder to allow HW encoders to negotiate their 
-        # preferred native format (like NV12) instead of hardcoding I420.
         if isinstance(sink, JpegRtpSink):
             video_branch = (
                 f"{video_src} ! "
                 "videoconvert ! videoscale ! videorate ! "
-                "video/x-raw,width=1920,height=1080,framerate=30/1 ! videoconvert ! "
+                f"video/x-raw,width={w},height={h},framerate={fps}/1 ! videoconvert ! "
                 f"{video_sink}"
             )
         else:
             video_branch = (
                 f"{video_src} ! "
                 "videoconvert ! videoscale ! videorate ! "
-                "video/x-raw,width=1920,height=1080,framerate=30/1 ! videoconvert ! "
+                f"video/x-raw,width={w},height={h},framerate={fps}/1 ! videoconvert ! "
                 f"{encoder} ! h264parse ! "
                 f"{video_sink}"
             )
@@ -777,7 +797,7 @@ class ScreenCaster:
                         "audioconvert ! audioresample ! "
                         "audio/x-raw,format=S16LE,channels=2,rate=48000 ! "
                         f"{audio_enc} ! {audio_pay} ! "
-                        f"udpsink host={target.host} port={target.audio_port} sync=false"
+                        f"udpsink host={target.host} port={target.audio_port} buffer-size=262144 sync=false"
                     )
                     return f"{video_branch}   {audio_branch}"
 

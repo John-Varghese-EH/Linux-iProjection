@@ -62,3 +62,41 @@ def test_config_save_load():
             resilient_loaded = load_config()
             assert resilient_loaded.polling_interval == 20
             assert resilient_loaded.stream_codec == "h264"
+
+
+def test_resolution_presets_and_config():
+    from linux_iprojection.config import RESOLUTION_PRESETS
+
+    assert "1080p" in RESOLUTION_PRESETS
+    assert RESOLUTION_PRESETS["1080p"] == (1920, 1080)
+    assert "wxga" in RESOLUTION_PRESETS
+    assert RESOLUTION_PRESETS["wxga"] == (1280, 800)
+    assert "720p" in RESOLUTION_PRESETS
+    assert RESOLUTION_PRESETS["720p"] == (1280, 720)
+    assert "xga" in RESOLUTION_PRESETS
+    assert RESOLUTION_PRESETS["xga"] == (1024, 768)
+
+    cfg = AppConfig(stream_resolution="wxga", stream_fps=60, stream_mtu=1400)
+    assert cfg.stream_resolution == "wxga"
+    assert cfg.stream_fps == 60
+    assert cfg.stream_mtu == 1400
+
+
+def test_device_store_passwords():
+    from linux_iprojection.config import DeviceStore
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        with mock.patch("linux_iprojection.config.get_config_dir", return_value=tmp_path):
+            store = DeviceStore()
+            # Initially empty
+            assert store.get_password("192.168.1.150") == ""
+
+            # Set password and retrieve
+            store.set_password("192.168.1.150", "4321")
+            assert store.get_password("192.168.1.150") == "4321"
+
+            # Re-instantiate store from disk to verify persistence
+            store2 = DeviceStore()
+            assert store2.get_password("192.168.1.150") == "4321"
+

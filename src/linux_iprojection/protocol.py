@@ -36,6 +36,14 @@ class ProjectorError(Exception):
     """Raised for handshake failures, timeouts, or ERR responses."""
 
 
+class ProjectorAuthRequiredError(ProjectorError):
+    """Raised when projector requires a password or 4-digit connection keyword."""
+
+    def __init__(self, message: str, host: str = ""):
+        super().__init__(message)
+        self.host = host
+
+
 class ProjectorUnreachableError(ProjectorError):
     """Raised when connection retries are exhausted."""
 
@@ -198,8 +206,16 @@ class EscVpNetClient:
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._keepalive_task: asyncio.Task | None = None
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
+        self._unread_buffer: bytearray = bytearray()
         self._connected = False
+
+    @property
+    def lock(self) -> asyncio.Lock:
+        """Lazily initialize asyncio.Lock to avoid event-loop binding issues."""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     @property
     def connected(self) -> bool:
@@ -207,6 +223,7 @@ class EscVpNetClient:
         return self._connected and self._writer is not None
 
     async def _attempt_connect(self) -> None:
+        self._unread_buffer.clear()
         try:
             self._reader, self._writer = await asyncio.wait_for(
                 asyncio.open_connection(self.host, self.port),
@@ -233,25 +250,27 @@ class EscVpNetClient:
         # Some projectors send a password challenge after the handshake.
         # The challenge format is: "ESCA" + 16-byte random salt.
         # We respond with MD5(salt + password).
-        if self.password:
-            try:
-                # Check if there's a password challenge waiting
-                challenge = await asyncio.wait_for(
-                    self._reader.read(20), timeout=1.0
-                )
-                if challenge and len(challenge) >= 20 and challenge[:4] == b"ESCA":
-                    salt = challenge[4:20]
-                    digest = hashlib.md5(salt + self.password.encode("utf-8")).hexdigest()
-                    self._writer.write(digest.encode("ascii"))
-                    await self._writer.drain()
-                    log.debug("ESC/VP.net password authentication sent to %s", self.host)
-                elif challenge:
-                    # Not a password challenge, push data back conceptually
-                    # (the prompt ':' may have arrived early)
-                    log.debug("No password challenge from %s (got %r)", self.host, challenge[:4])
-            except asyncio.TimeoutError:
-                # No password challenge - projector doesn't require auth
-                log.debug("No password challenge from %s (timeout - auth not required)", self.host)
+        try:
+            challenge = await asyncio.wait_for(
+                self._reader.read(20), timeout=0.8
+            )
+            if challenge and len(challenge) >= 20 and challenge[:4] == b"ESCA":
+                if not self.password:
+                    raise ProjectorAuthRequiredError(
+                        f"Projector at {self.host} requires a password or connection keyword.",
+                        host=self.host,
+                    )
+                salt = challenge[4:20]
+                digest = hashlib.md5(salt + self.password.encode("utf-8")).hexdigest()
+                self._writer.write(digest.encode("ascii"))
+                await self._writer.drain()
+                log.debug("ESC/VP.net password authentication sent to %s", self.host)
+            elif challenge:
+                # Not a password challenge - buffer the bytes (e.g. prompt b":") for the first command
+                self._unread_buffer.extend(challenge)
+                log.debug("Buffered non-challenge bytes after handshake from %s: %r", self.host, challenge)
+        except asyncio.TimeoutError:
+            log.debug("No password challenge from %s (auth not required)", self.host)
 
         self._connected = True
 
@@ -279,7 +298,7 @@ class EscVpNetClient:
                 await asyncio.sleep(10)
                 if self._writer is not None:
                     # Send PWR? to keep the connection alive (per protocol notes)
-                    async with self._lock:
+                    async with self.lock:
                         self._writer.write(b"PWR?" + CMD_TERMINATOR)
                         await self._writer.drain()
                         await self._read_until_prompt()
@@ -303,6 +322,7 @@ class EscVpNetClient:
     async def close(self) -> None:
         self.stop_keepalive()
         self._connected = False
+        self._unread_buffer.clear()
         if self._writer is not None:
             self._writer.close()
             try:
@@ -326,22 +346,33 @@ class EscVpNetClient:
         """Read projector response until the ':' prompt character.
 
         Handles firmware quirks where some models send ``\\r:`` instead of
-        ``\\r\\n:`` after the response payload.
+        ``\\r\\n:`` after the response payload, and checks the unread buffer first.
         """
         assert self._reader is not None
-        try:
-            data = await asyncio.wait_for(self._reader.readuntil(PROMPT), timeout=COMMAND_TIMEOUT)
-        except asyncio.TimeoutError as e:
-            self._connected = False
-            raise ProjectorError(f"Timed out waiting for reply from {self.host}") from e
-        except asyncio.IncompleteReadError as e:
-            self._connected = False
-            raise ProjectorError(f"Connection closed by {self.host}") from e
-        
+        while PROMPT not in self._unread_buffer:
+            try:
+                chunk = await asyncio.wait_for(self._reader.read(1024), timeout=COMMAND_TIMEOUT)
+            except asyncio.TimeoutError as e:
+                self._connected = False
+                raise ProjectorError(f"Timed out waiting for reply from {self.host}") from e
+            except (OSError, asyncio.IncompleteReadError) as e:
+                self._connected = False
+                raise ProjectorError(f"Connection closed by {self.host}: {e}") from e
+
+            if not chunk:
+                self._connected = False
+                raise ProjectorError(f"Connection closed by {self.host}")
+
+            self._unread_buffer.extend(chunk)
+
+        idx = self._unread_buffer.index(PROMPT)
+        data = bytes(self._unread_buffer[:idx])
+        del self._unread_buffer[: idx + len(PROMPT)]
+
         if log.isEnabledFor(logging.DEBUG):
             hex_str = " ".join(f"{b:02x}" for b in data)
             log.debug("RX Hex [%s:%d]: %s", self.host, self.port, hex_str)
-        return data.rstrip(PROMPT).strip(b"\r\n")
+        return data.strip(b"\r\n")
 
     async def send(self, command: str) -> str:
         """Send a raw ESC/VP21 command (without the trailing CR) and
@@ -349,14 +380,21 @@ class EscVpNetClient:
         """
         if self._writer is None:
             raise ProjectorError("Not connected - use `async with EscVpNetClient(...)`")
-        async with self._lock:
+        async with self.lock:
+            # Clear any leftover prompt/bytes from greeting or previous commands
+            self._unread_buffer.clear()
             payload = command.encode("ascii") + CMD_TERMINATOR
             if log.isEnabledFor(logging.DEBUG):
                 hex_str = " ".join(f"{b:02x}" for b in payload)
                 log.debug("TX Hex [%s:%d]: %s ('%s')", self.host, self.port, hex_str, command)
-            self._writer.write(payload)
-            await self._writer.drain()
-            reply = await self._read_until_prompt()
+            try:
+                self._writer.write(payload)
+                await self._writer.drain()
+                reply = await self._read_until_prompt()
+            except (OSError, asyncio.IncompleteReadError) as e:
+                self._connected = False
+                raise ProjectorError(f"Connection error while sending '{command}': {e}") from e
+
         text = reply.decode("ascii", errors="replace").strip()
         if text.startswith("ERR"):
             raise ProjectorError(f"Projector rejected '{command}': {text}")

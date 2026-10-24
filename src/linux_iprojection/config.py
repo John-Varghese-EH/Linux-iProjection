@@ -22,6 +22,14 @@ except ImportError:
             return os.path.expanduser("~/.config")
 
 
+RESOLUTION_PRESETS: dict[str, tuple[int, int]] = {
+    "1080p": (1920, 1080),
+    "720p": (1280, 720),
+    "wxga": (1280, 800),
+    "xga": (1024, 768),
+}
+
+
 @dataclass
 class AppConfig:
     polling_interval: int = 10
@@ -36,6 +44,9 @@ class AppConfig:
     video_port: int = 5004
     audio_port: int = 5006
     stream_codec: str = "h264"  # 'h264' (standard) or 'jpeg' (legacy)
+    stream_resolution: str = "1080p"  # '1080p', '720p', 'wxga', 'xga'
+    stream_fps: int = 30
+    stream_mtu: int = 1400
 
 
 @dataclass
@@ -174,6 +185,32 @@ class DeviceStore:
                 continue
             key = str(addr).strip()
             self.devices[key] = d
+        self.save()
+
+    def get_password(self, host: str) -> str:
+        """Get stored password or keyword for a device host."""
+        for k, v in self.devices.items():
+            if k == host or v.get("address") == host or v.get("ip") == host:
+                return v.get("escvp_password") or v.get("pjlink_password") or ""
+        return ""
+
+    def set_password(self, host: str, password: str) -> None:
+        """Store password or keyword for a device host."""
+        matched = False
+        for k, v in self.devices.items():
+            if k == host or v.get("address") == host or v.get("ip") == host:
+                v["escvp_password"] = password
+                v["pjlink_password"] = password
+                matched = True
+        if not matched:
+            self.devices[host] = {
+                "name": host,
+                "address": host,
+                "ip": host,
+                "port": 3629,
+                "escvp_password": password,
+                "pjlink_password": password,
+            }
         self.save()
 
 
