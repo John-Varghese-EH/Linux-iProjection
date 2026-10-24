@@ -13,14 +13,16 @@ finish-args:
   - --socket=pulseaudio
   - --filesystem=xdg-config/linux-iprojection:create
   - --talk-name=org.freedesktop.portal.Desktop
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.kde.StatusNotifierWatcher
 modules:
-  - name: python3-zeroconf
+  - name: python3-dependencies
     buildsystem: simple
     build-options:
       build-args:
         - --share=network
     build-commands:
-      - pip3 install --prefix=/app --break-system-packages zeroconf
+      - pip3 install --prefix=/app --break-system-packages zeroconf Pillow pystray
   - name: linux-iprojection
     buildsystem: simple
     build-options:

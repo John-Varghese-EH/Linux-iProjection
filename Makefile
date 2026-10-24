@@ -41,6 +41,14 @@ deb:
 	mv *.deb dist/
 	rm -rf build-deb
 
+deb-src:
+	@echo "Building Launchpad PPA source package for linux-iprojection $(VERSION) …"
+	bash packaging/debian/build-source-package.sh
+
+snap:
+	@echo "Building Snap package for linux-iprojection $(VERSION) …"
+	snapcraft
+
 aur: dist-tar
 	@echo "Preparing AUR package for linux-iprojection $(VERSION) …"
 	glib-compile-resources --sourcedir=data data/linux_iprojection.gresource.xml --target=data/linux_iprojection.gresource

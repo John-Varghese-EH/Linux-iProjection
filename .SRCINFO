@@ -20,6 +20,6 @@ pkgbase = linux-iprojection
 	optdepends = gst-plugins-bad: additional hardware video encoders and WebRTC
 	optdepends = gst-plugin-pipewire: Wayland screen capture portal integration
 	source = linux-iprojection-1.4.1.tar.gz::https://github.com/John-Varghese-EH/Linux-iProjection/releases/download/v1.4.1/linux-iprojection-1.4.1.tar.gz
-	sha256sums = 8e709398820cbe4db0258020143b1ce6d8ae61b80cbb954f68de511a0e323dfd
+	sha256sums = 8059cd82137d451b0679218e1f28bb2307f0cbbfb4642af0ac1d0240c29e14f5
 
 pkgname = linux-iprojection

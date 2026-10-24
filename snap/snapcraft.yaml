@@ -1,0 +1,47 @@
+name: linux-iprojection
+base: core24
+version: '1.4.1'
+summary: Native Linux control & casting app for Epson projectors
+description: |
+  Native Linux control & casting app for Epson projectors (ESC/VP.net + EShare).
+  Take complete command over network and mDNS projection. Features advanced
+  diagnostic tools, custom alias management, direct ESC/VP console access,
+  and native PipeWire screen casting.
+
+grade: stable
+confinement: strict
+
+apps:
+  linux-iprojection:
+    command: bin/linux-iprojection
+    extensions: [gnome]
+    plugs:
+      - network
+      - network-bind
+      - audio-playback
+      - screen-inhibit-control
+      - desktop
+      - desktop-legacy
+      - wayland
+      - x11
+      - opengl
+    desktop: share/applications/dev.linux_iprojection.LinuxIProjection.desktop
+
+parts:
+  linux-iprojection:
+    plugin: python
+    source: .
+    stage-packages:
+      - gir1.2-adw-1
+      - libadwaita-1-0
+      - gstreamer1.0-plugins-base
+      - gstreamer1.0-plugins-good
+      - gstreamer1.0-pipewire
+      - gstreamer1.0-plugins-bad
+      - gstreamer1.0-tools
+    override-build: |
+      craftctl default
+      install -Dm644 data/dev.linux_iprojection.LinuxIProjection.desktop $CRAFT_PART_INSTALL/share/applications/dev.linux_iprojection.LinuxIProjection.desktop
+      install -Dm644 data/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg $CRAFT_PART_INSTALL/share/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg
+      install -Dm644 data/dev.linux_iprojection.LinuxIProjection.metainfo.xml $CRAFT_PART_INSTALL/share/metainfo/dev.linux_iprojection.LinuxIProjection.metainfo.xml
+      install -Dm644 data/linux_iprojection.gresource $CRAFT_PART_INSTALL/share/linux-iprojection/linux_iprojection.gresource
