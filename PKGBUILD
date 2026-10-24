@@ -1,23 +1,44 @@
 pkgname=linux-iprojection
-pkgver=1.4.0
-_srcver=1.4.0
+pkgver=1.4.1
+_srcver=1.4.1
 pkgrel=1
 pkgdesc="Native Linux control & casting app for Epson projectors"
 arch=('any')
 url="https://github.com/John-Varghese-EH/Linux-iProjection"
-license=('AGPL3')
+license=('AGPL-3.0-or-later')
 depends=('python' 'python-gobject' 'python-zeroconf' 'gtk4' 'libadwaita')
+optdepends=(
+  'python-pillow: system tray icon rendering'
+  'python-pystray: system tray menu support'
+  'gst-plugins-good: RTP streaming pipeline'
+  'gst-plugins-bad: additional hardware video encoders and WebRTC'
+  'gst-plugin-pipewire: Wayland screen capture portal integration'
+)
 makedepends=('python-build' 'python-installer' 'python-wheel' 'python-setuptools')
 source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/$pkgname-$_srcver.tar.gz")
-sha256sums=('1f2c69035a07afd0dafc5a7c89af66999f3721e75fb2e6ed1689f47560b617e4')
+sha256sums=('8e709398820cbe4db0258020143b1ce6d8ae61b80cbb954f68de511a0e323dfd')
 
 build() {
-  cd "$srcdir/$pkgname-$_srcver"
+  cd "$srcdir"
+  if [ -d "$pkgname-$_srcver" ]; then
+    cd "$pkgname-$_srcver"
+  elif [ -d "linux_iprojection-$_srcver" ]; then
+    cd "linux_iprojection-$_srcver"
+  elif [ -d "Linux-iProjection-$_srcver" ]; then
+    cd "Linux-iProjection-$_srcver"
+  fi
   python -m build --wheel --no-isolation
 }
 
 package() {
-  cd "$srcdir/$pkgname-$_srcver"
+  cd "$srcdir"
+  if [ -d "$pkgname-$_srcver" ]; then
+    cd "$pkgname-$_srcver"
+  elif [ -d "linux_iprojection-$_srcver" ]; then
+    cd "linux_iprojection-$_srcver"
+  elif [ -d "Linux-iProjection-$_srcver" ]; then
+    cd "Linux-iProjection-$_srcver"
+  fi
   python -m installer --destdir="$pkgdir" dist/*.whl
 
   # Install desktop file and icon

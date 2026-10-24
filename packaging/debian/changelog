@@ -1,3 +1,15 @@
+linux-iprojection (1.4.1-1) unstable; urgency=medium
+
+  * Added ESC/VP.net challenge-response authentication for passwords and 4-digit keywords.
+  * Added modal keyword/password authentication dialog with persistent device store.
+  * Added configurable casting resolutions (1080p, 720p, WXGA 1280x800, XGA 1024x768).
+  * Socket buffer tuning (512KB) and MTU clamped to 1400 bytes to prevent Wi-Fi/VLAN drops.
+  * Added multi-subnet Wake-on-LAN broadcast across ports 7 and 9 with direct MAC parsing.
+  * Added EEMP dual-port discovery fallback to prevent bind conflicts.
+  * Fixed unread stream buffering and thread-safe lazy lock event loop synchronization.
+
+ -- John Varghese (J0X) <john@example.com>  Sun, 25 Oct 2026 00:00:00 +0000
+
 linux-iprojection (1.4.0-1) unstable; urgency=medium
 
   * Bug fixes for log_writer TypeError on some PyGObject versions.

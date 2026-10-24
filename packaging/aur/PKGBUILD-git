@@ -1,0 +1,41 @@
+# Maintainer: John Varghese (J0X) <john@example.com>
+pkgname=linux-iprojection-git
+pkgver=1.4.1.r0.ge00efc2
+pkgrel=1
+pkgdesc="Native Linux control & casting app for Epson projectors (latest git)"
+arch=('any')
+url="https://github.com/John-Varghese-EH/Linux-iProjection"
+license=('AGPL-3.0-or-later')
+depends=('python' 'python-gobject' 'python-zeroconf' 'gtk4' 'libadwaita')
+optdepends=(
+  'python-pillow: system tray icon rendering'
+  'python-pystray: system tray menu support'
+  'gst-plugins-good: RTP streaming pipeline'
+  'gst-plugins-bad: additional hardware video encoders and WebRTC'
+  'gst-plugin-pipewire: Wayland screen capture portal integration'
+)
+makedepends=('git' 'python-build' 'python-installer' 'python-wheel' 'python-setuptools')
+provides=('linux-iprojection')
+conflicts=('linux-iprojection')
+source=("git+$url.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$srcdir/Linux-iProjection"
+  git describe --long --tags 2>/dev/null | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' || printf "1.4.1.r%s.g%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cd "$srcdir/Linux-iProjection"
+  python -m build --wheel --no-isolation
+}
+
+package() {
+  cd "$srcdir/Linux-iProjection"
+  python -m installer --destdir="$pkgdir" dist/*.whl
+
+  install -Dm644 data/dev.linux_iprojection.LinuxIProjection.desktop "$pkgdir/usr/share/applications/dev.linux_iprojection.LinuxIProjection.desktop"
+  install -Dm644 data/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg"
+  install -Dm644 data/dev.linux_iprojection.LinuxIProjection.metainfo.xml "$pkgdir/usr/share/metainfo/dev.linux_iprojection.LinuxIProjection.metainfo.xml"
+  install -Dm644 data/linux_iprojection.gresource "$pkgdir/usr/share/linux-iprojection/linux_iprojection.gresource"
+}

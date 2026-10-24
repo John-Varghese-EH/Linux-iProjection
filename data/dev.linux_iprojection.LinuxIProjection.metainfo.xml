@@ -19,6 +19,20 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.4.1" date="2026-10-25">
+      <description>
+        <p>Enterprise resilience, projector authentication keyword support, and multi-resolution casting.</p>
+        <ul>
+          <li>Added ESC/VP.net challenge-response authentication for connection passwords and 4-digit keywords.</li>
+          <li>Interactive connection authentication dialog in UI with persistent device credential storage.</li>
+          <li>Added configurable casting resolutions (1080p, 720p, WXGA 1280x800, XGA 1024x768) and custom framerates.</li>
+          <li>Optimized RTP/UDP socket buffering (512KB) and MTU (1400) to eliminate packet loss over Wi-Fi/VLANs.</li>
+          <li>Multi-subnet Wake-on-LAN broadcast across ports 7 and 9 with direct MAC parsing.</li>
+          <li>EEMP dual-port discovery fallback to prevent bind conflicts.</li>
+          <li>Fixed protocol stream unread buffering and event loop synchronization.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.4.0" date="2026-09-23">
       <description>
         <p>Enterprise error reporting and bug fixes.</p>

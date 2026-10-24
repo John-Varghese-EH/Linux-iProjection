@@ -1,10 +1,10 @@
 pkgbase = linux-iprojection
 	pkgdesc = Native Linux control & casting app for Epson projectors
-	pkgver = 1.4.0
+	pkgver = 1.4.1
 	pkgrel = 1
 	url = https://github.com/John-Varghese-EH/Linux-iProjection
 	arch = any
-	license = AGPL3
+	license = AGPL-3.0-or-later
 	makedepends = python-build
 	makedepends = python-installer
 	makedepends = python-wheel
@@ -14,7 +14,12 @@ pkgbase = linux-iprojection
 	depends = python-zeroconf
 	depends = gtk4
 	depends = libadwaita
-	source = linux-iprojection-1.4.0.tar.gz::https://github.com/John-Varghese-EH/Linux-iProjection/releases/download/v1.4.0/linux-iprojection-1.4.0.tar.gz
-	sha256sums = 1f2c69035a07afd0dafc5a7c89af66999f3721e75fb2e6ed1689f47560b617e4
+	optdepends = python-pillow: system tray icon rendering
+	optdepends = python-pystray: system tray menu support
+	optdepends = gst-plugins-good: RTP streaming pipeline
+	optdepends = gst-plugins-bad: additional hardware video encoders and WebRTC
+	optdepends = gst-plugin-pipewire: Wayland screen capture portal integration
+	source = linux-iprojection-1.4.1.tar.gz::https://github.com/John-Varghese-EH/Linux-iProjection/releases/download/v1.4.1/linux-iprojection-1.4.1.tar.gz
+	sha256sums = 8e709398820cbe4db0258020143b1ce6d8ae61b80cbb954f68de511a0e323dfd
 
 pkgname = linux-iprojection
