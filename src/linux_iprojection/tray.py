@@ -42,22 +42,36 @@ def on_click(icon, action_item):
     elif action_item.text == "Quit":
         cmd = "QUIT"
 
-    print(cmd, flush=True)
+    try:
+        print(cmd, flush=True)
+    except (BrokenPipeError, OSError):
+        icon.stop()
+        return
 
     if cmd == "QUIT":
         icon.stop()
 
 def stdin_listener():
     global icon_ref
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:
-            continue
-        if line.startswith("STATE:"):
-            key, val = line.split(":", 1)[1].split("=")
-            state[key] = (val == "1")
-            if icon_ref:
-                icon_ref.update_menu()
+    try:
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("STATE:"):
+                key, val = line.split(":", 1)[1].split("=")
+                state[key] = (val == "1")
+                if icon_ref:
+                    icon_ref.update_menu()
+    except Exception:
+        pass
+    finally:
+        # Parent process closed stdin or died; terminate tray process cleanly
+        if icon_ref:
+            icon_ref.stop()
+        else:
+            import os
+            os._exit(0)
 
 def main():
     global icon_ref

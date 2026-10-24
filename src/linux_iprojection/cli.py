@@ -298,7 +298,11 @@ async def _cast(args):
     print(f"Starting screen cast to {args.ip}:{args.video_port} (quality={args.quality})...")
     success = await caster.start(target)
     if not success:
-        print("Failed to start casting (portal cancelled or pipeline error).")
+        if getattr(caster, "user_cancelled", False):
+            print("Screen sharing cancelled by user.")
+        else:
+            err = getattr(caster, "last_error", None) or "portal or pipeline error"
+            print(f"Failed to start casting: {err}")
         return
 
     print(f"Casting to {args.ip} — press Ctrl+C to stop.")

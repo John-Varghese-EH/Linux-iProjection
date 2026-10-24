@@ -975,6 +975,19 @@ class MainWindow(Adw.ApplicationWindow):
         refresh_action.connect("activate", lambda *_: self._refresh_status())
         app.add_action(refresh_action)
 
+        quit_action = Gio.SimpleAction.new("quit", None)
+        quit_action.connect("activate", self._on_quit_action)
+        app.add_action(quit_action)
+
+    def _on_quit_action(self, *_args):
+        if self._tray_process:
+            try:
+                self._tray_process.terminate()
+            except Exception:
+                pass
+            self._tray_process = None
+        self.get_application().quit()
+
     def _on_clear_devices(self, *_args):
         self._device_store.clear_all()
         # Remove all persisted and manual from the UI
@@ -991,6 +1004,7 @@ class MainWindow(Adw.ApplicationWindow):
         app = self.get_application()
         app.set_accels_for_action("app.preferences", ["<Control>comma"])
         app.set_accels_for_action("app.shortcuts", ["<Control>question"])
+        app.set_accels_for_action("app.quit", ["<Control>q"])
 
     def _setup_tray_icon(self) -> None:
         import os
@@ -1034,7 +1048,7 @@ class MainWindow(Adw.ApplicationWindow):
             self._tray_process.stdin.write(f"STATE:casting={is_casting}\n")
             self._tray_process.stdin.flush()
         except (OSError, Exception) as e:
-            log.warning(f"Could not open browser: {e}")
+            log.warning(f"Failed to update tray state: {e}")
 
     def _set_casting_state(self, state: bool) -> None:
         self._is_casting = state
@@ -1065,7 +1079,10 @@ class MainWindow(Adw.ApplicationWindow):
                 self.on_stop_cast_clicked(None)
         elif cmd == "QUIT":
             if self._tray_process:
-                self._tray_process.terminate()
+                try:
+                    self._tray_process.terminate()
+                except Exception:
+                    pass
                 self._tray_process = None
             self.get_application().quit()
 
@@ -1299,7 +1316,7 @@ class MainWindow(Adw.ApplicationWindow):
             )
         )
         section.append(group)
-        shortcuts.set_child(section)
+        shortcuts.add_section(section)
         shortcuts.present()
 
     # Polling
@@ -2172,8 +2189,11 @@ class MainWindow(Adw.ApplicationWindow):
                 # Check if casting actually started
                 if self._caster.is_casting:
                     GLib.idle_add(self._on_cast_started, device.name or device.address)
+                elif getattr(self._caster, "user_cancelled", False):
+                    GLib.idle_add(self._on_cast_failed, "Screen sharing cancelled")
                 else:
-                    GLib.idle_add(self._on_cast_failed, "Casting was cancelled or failed to start")
+                    err = getattr(self._caster, "last_error", None) or "Casting failed to start"
+                    GLib.idle_add(self._on_cast_failed, err)
 
             except Exception as e:
                 import traceback
@@ -2194,7 +2214,7 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_cast_failed(self, error_msg: str) -> None:
         self.cast_btn.set_sensitive(True)
         self.cast_btn.set_label("Start Casting")
-        if "cancel" in error_msg.lower() or "dismissed" in error_msg.lower():
+        if error_msg in ("Screen sharing cancelled", "User dismissed the screen sharing dialog", "Screen sharing cancelled by user"):
             self.show_toast("Screen sharing cancelled")
         else:
             self._show_error_dialog("Casting Failed", error_msg)
@@ -2504,6 +2524,16 @@ class EpsonCtlApp(Adw.Application):
         if not win:
             win = MainWindow(self)
         win.present()
+
+    def do_shutdown(self) -> None:
+        for win in self.get_windows():
+            if hasattr(win, "_tray_process") and win._tray_process:
+                try:
+                    win._tray_process.terminate()
+                    win._tray_process = None
+                except Exception:
+                    pass
+        Adw.Application.do_shutdown(self)
 
     def do_startup(self) -> None:
         Adw.Application.do_startup(self)
