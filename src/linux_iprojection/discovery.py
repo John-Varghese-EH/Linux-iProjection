@@ -164,7 +164,7 @@ def _local_ipv4_networks() -> list[ipaddress.IPv4Network]:
                     try:
                         iface = ipaddress.IPv4Interface(f"{ip}/{netmask}")
                         # Constrain large networks (e.g. link-local /16) to /24 around host to keep scan fast
-                        if iface.network.prefixlen < 24:
+                        if iface.network.prefixlen < 24 or iface.network.prefixlen == 32:
                             sub = ipaddress.IPv4Network(f"{ip}/24", strict=False)
                             if sub not in nets:
                                 nets.append(sub)

@@ -53,3 +53,12 @@ def test_config_save_load():
             assert loaded.default_port == 4352
             assert loaded.pjlink_password == "secret_password"
             assert loaded.debug_mode is True
+            assert loaded.stream_codec == "h264"
+
+            # Verify resilient loading with unexpected/deprecated keys
+            import json
+            with open(tmp_path / "config.json", "w") as f:
+                json.dump({"polling_interval": 20, "unknown_future_field": "test"}, f)
+            resilient_loaded = load_config()
+            assert resilient_loaded.polling_interval == 20
+            assert resilient_loaded.stream_codec == "h264"

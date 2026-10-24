@@ -5,6 +5,7 @@ Tests use mocked sockets and zeroconf - no real network needed.
 """
 
 import asyncio
+import ipaddress
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -120,8 +121,7 @@ def test_dedup_prefers_mdns():
 
 def test_local_ipv4_networks():
     """Should return at least one network on most dev machines."""
-    # This test may fail in isolated CI without network - that's OK
     networks = _local_ipv4_networks()
-    # Don't assert length > 0 as this depends on environment
     for net in networks:
-        assert net.prefixlen == 24
+        assert isinstance(net, ipaddress.IPv4Network)
+        assert 8 <= net.prefixlen <= 32

@@ -589,21 +589,49 @@ class EscVpNetClient:
         cmd = "MODERATOR ON" if enable else "MODERATOR OFF"
         await self.send(cmd)
 
+    async def get_moderator_mode(self) -> bool:
+        """Query Multi-PC Moderator mode."""
+        reply = await self.send("MODERATOR?")
+        if reply.startswith("MODERATOR="):
+            return reply.split("=", 1)[1] == "ON"
+        return False
+
     async def set_whiteboard_sharing(self, enable: bool) -> None:
         """Enable Whiteboard sharing (isSupportWhitebordSharing)."""
         cmd = "WBSHARE ON" if enable else "WBSHARE OFF"
         await self.send(cmd)
+
+    async def get_whiteboard_sharing(self) -> bool:
+        """Query Whiteboard sharing."""
+        reply = await self.send("WBSHARE?")
+        if reply.startswith("WBSHARE="):
+            return reply.split("=", 1)[1] == "ON"
+        return False
 
     async def set_fcn(self, enable: bool) -> None:
         """Enable FCN (Forward Coordinates via Network) for Interactive Pen/Touch."""
         cmd = "FCN ON" if enable else "FCN OFF"
         await self.send(cmd)
 
+    async def get_fcn(self) -> bool:
+        """Query FCN (Forward Coordinates via Network) status."""
+        reply = await self.send("FCN?")
+        if reply.startswith("FCN="):
+            return reply.split("=", 1)[1] == "ON"
+        return False
+
     async def set_encryption(self, mode: str) -> None:
         """Enable Stream Encryption.
         Supported modes: OFF, AES, DES, AESEPCTR.
         """
         await self.send(f"ENCRYPT {mode.upper()}")
+
+    async def get_encryption(self) -> str:
+        """Query Stream Encryption mode."""
+        reply = await self.send("ENCRYPT?")
+        if reply.startswith("ENCRYPT="):
+            return reply.split("=", 1)[1]
+        return reply
 
     async def get_brightness(self) -> int:
         reply = await self.send("BRIGHT?")

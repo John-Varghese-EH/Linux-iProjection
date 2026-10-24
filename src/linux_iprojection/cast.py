@@ -469,6 +469,17 @@ class ScreenCaster:
                         self.on_error(err_msg)
                     return False
 
+            if node_id is None and is_wayland:
+                err_msg = "ScreenCast portal did not return a valid video stream. Ensure screen sharing permission was granted."
+                log.error(err_msg)
+                self.last_error = err_msg
+                if self.on_error:
+                    self.on_error(err_msg)
+                return False
+
+            # Switch projector to LAN input (source 53) and wake up if in standby
+            await self._prepare_projector_for_stream(target)
+
         # Build the pipeline
         pipeline_str = self._build_pipeline(target, node_id, is_file)
         log.info("GStreamer pipeline: %s", pipeline_str)
@@ -561,11 +572,19 @@ class ScreenCaster:
 
         Sends SOURCE 53 (LAN input) via ESC/VP.net so the projector's
         internal decoder is ready to receive the incoming RTP stream.
-        This mirrors what the Windows iProjection app does before pushing frames.
+        Powers on the projector if it is currently in standby mode.
         """
         try:
             from .protocol import EscVpNetClient, Source
             async with EscVpNetClient(target.host) as client:
+                try:
+                    pwr = await client.get_power()
+                    if pwr == "00":
+                        log.info("Projector %s is in standby, powering on before streaming...", target.host)
+                        await client.power_on()
+                        await asyncio.sleep(1.5)
+                except Exception:
+                    pass
                 await client.set_source(Source.LAN)
                 log.info("Switched %s to LAN source (53) for streaming", target.host)
         except Exception as e:
@@ -710,13 +729,21 @@ class ScreenCaster:
         # Limits resolution to 1080p and framerate to 30fps for projector compatibility.
         # Uses videoconvert before the encoder to allow HW encoders to negotiate their 
         # preferred native format (like NV12) instead of hardcoding I420.
-        video_branch = (
-            f"{video_src} ! "
-            "videoconvert ! videoscale ! videorate ! "
-            "video/x-raw,width=1920,height=1080,framerate=30/1 ! videoconvert ! "
-            f"{encoder} ! h264parse ! "
-            f"{video_sink}"
-        )
+        if isinstance(sink, JpegRtpSink):
+            video_branch = (
+                f"{video_src} ! "
+                "videoconvert ! videoscale ! videorate ! "
+                "video/x-raw,width=1920,height=1080,framerate=30/1 ! videoconvert ! "
+                f"{video_sink}"
+            )
+        else:
+            video_branch = (
+                f"{video_src} ! "
+                "videoconvert ! videoscale ! videorate ! "
+                "video/x-raw,width=1920,height=1080,framerate=30/1 ! videoconvert ! "
+                f"{encoder} ! h264parse ! "
+                f"{video_sink}"
+            )
 
         # Audio branch
         use_audio = self.audio_enabled if enable_audio is None else enable_audio

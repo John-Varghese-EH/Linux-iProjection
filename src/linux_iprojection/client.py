@@ -258,17 +258,37 @@ class ProjectorClient:
         if hasattr(self._client, "set_moderator_mode"):
             await self._client.set_moderator_mode(enable)
 
+    async def get_moderator_mode(self) -> bool:
+        if hasattr(self._client, "get_moderator_mode"):
+            return await self._client.get_moderator_mode()
+        return False
+
     async def set_whiteboard_sharing(self, enable: bool) -> None:
         if hasattr(self._client, "set_whiteboard_sharing"):
             await self._client.set_whiteboard_sharing(enable)
+
+    async def get_whiteboard_sharing(self) -> bool:
+        if hasattr(self._client, "get_whiteboard_sharing"):
+            return await self._client.get_whiteboard_sharing()
+        return False
 
     async def set_fcn(self, enable: bool) -> None:
         if hasattr(self._client, "set_fcn"):
             await self._client.set_fcn(enable)
 
+    async def get_fcn(self) -> bool:
+        if hasattr(self._client, "get_fcn"):
+            return await self._client.get_fcn()
+        return False
+
     async def set_encryption(self, mode: str) -> None:
         if hasattr(self._client, "set_encryption"):
             await self._client.set_encryption(mode)
+
+    async def get_encryption(self) -> str:
+        if hasattr(self._client, "get_encryption"):
+            return await self._client.get_encryption()
+        return ""
 
     async def get_status(self) -> UnifiedStatus:
         s = UnifiedStatus()

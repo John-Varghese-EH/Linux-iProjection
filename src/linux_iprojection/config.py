@@ -35,6 +35,7 @@ class AppConfig:
     debug_mode: bool = False
     video_port: int = 5004
     audio_port: int = 5006
+    stream_codec: str = "h264"  # 'h264' (standard) or 'jpeg' (legacy)
 
 
 @dataclass
@@ -69,7 +70,10 @@ def load_config() -> AppConfig:
         try:
             with open(config_path, "r") as f:
                 data = json.load(f)
-            return AppConfig(**data)
+            import dataclasses
+            valid_keys = {f.name for f in dataclasses.fields(AppConfig)}
+            filtered_data = {k: v for k, v in data.items() if k in valid_keys}
+            return AppConfig(**filtered_data)
         except (OSError, ValueError) as e:
             logging.error(f"Failed to load config, using defaults: {e}")
     return AppConfig()

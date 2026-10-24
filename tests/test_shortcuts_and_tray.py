@@ -7,10 +7,21 @@ import sys
 def test_shortcuts_window_close_does_not_segfault():
     """Verify that Gtk.ShortcutsWindow with add_section closes without assertion errors."""
     import gi
+    gi.require_version("Gdk", "4.0")
     gi.require_version("Gtk", "4.0")
-    from gi.repository import Gtk
+    import pytest
+    from gi.repository import Gdk, Gtk
 
-    shortcuts = Gtk.ShortcutsWindow()
+    # Skip if running in a headless environment without an active display server
+    if Gdk.Display.get_default() is None:
+        pytest.skip("No display server available (headless environment)")
+
+    try:
+        shortcuts = Gtk.ShortcutsWindow()
+    except RuntimeError as e:
+        if "Gtk couldn't be initialized" in str(e):
+            pytest.skip("Gtk could not be initialized (headless environment)")
+        raise
     section = Gtk.ShortcutsSection(visible=True)
     group = Gtk.ShortcutsGroup(title="General", visible=True)
     group.append(

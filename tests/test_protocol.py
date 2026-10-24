@@ -210,7 +210,9 @@ async def test_enterprise_moderator(fake_server):
     """MODERATOR ON/OFF should round-trip."""
     async with EscVpNetClient("127.0.0.1", fake_server.actual_port) as client:
         await client.set_moderator_mode(True)
+        assert await client.get_moderator_mode() is True
         await client.set_moderator_mode(False)
+        assert await client.get_moderator_mode() is False
 
 
 @pytest.mark.asyncio
@@ -218,7 +220,9 @@ async def test_enterprise_whiteboard(fake_server):
     """WBSHARE ON/OFF should round-trip."""
     async with EscVpNetClient("127.0.0.1", fake_server.actual_port) as client:
         await client.set_whiteboard_sharing(True)
+        assert await client.get_whiteboard_sharing() is True
         await client.set_whiteboard_sharing(False)
+        assert await client.get_whiteboard_sharing() is False
 
 
 @pytest.mark.asyncio
@@ -226,7 +230,9 @@ async def test_enterprise_fcn(fake_server):
     """FCN ON/OFF should round-trip."""
     async with EscVpNetClient("127.0.0.1", fake_server.actual_port) as client:
         await client.set_fcn(True)
+        assert await client.get_fcn() is True
         await client.set_fcn(False)
+        assert await client.get_fcn() is False
 
 
 @pytest.mark.asyncio
@@ -234,8 +240,11 @@ async def test_enterprise_encryption(fake_server):
     """ENCRYPT command should accept all supported modes."""
     async with EscVpNetClient("127.0.0.1", fake_server.actual_port) as client:
         await client.set_encryption("AES")
+        assert await client.get_encryption() == "AES"
         await client.set_encryption("AESEPCTR")
+        assert await client.get_encryption() == "AESEPCTR"
         await client.set_encryption("OFF")
+        assert await client.get_encryption() == "OFF"
 
 
 @pytest.mark.asyncio

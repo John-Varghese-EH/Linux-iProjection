@@ -1158,7 +1158,7 @@ class MainWindow(Adw.ApplicationWindow):
         connect_group.add(auto_row)
         general_page.add(connect_group)
 
-        # Streaming Quality
+        # Streaming Quality & Format
         stream_group = Adw.PreferencesGroup(title="Screen Casting")
         quality_row = Adw.ComboRow(
             title="Stream Quality", subtitle="Adjust based on network stability"
@@ -1169,6 +1169,17 @@ class MainWindow(Adw.ApplicationWindow):
         quality_row.set_selected(quality_map.get(self._config.stream_quality, 1))
         quality_row.connect("notify::selected", self._on_stream_quality_changed)
         stream_group.add(quality_row)
+
+        codec_row = Adw.ComboRow(
+            title="Stream Format",
+            subtitle="H.264 for modern projectors, JPEG for legacy EasyMP models",
+        )
+        codec_model = Gtk.StringList.new(["H.264 (Standard)", "JPEG (Legacy)"])
+        codec_row.set_model(codec_model)
+        codec_row.set_selected(1 if getattr(self._config, "stream_codec", "h264") == "jpeg" else 0)
+        codec_row.connect("notify::selected", self._on_stream_codec_changed)
+        stream_group.add(codec_row)
+
         general_page.add(stream_group)
 
         # Appearance group
@@ -1232,10 +1243,113 @@ class MainWindow(Adw.ApplicationWindow):
         )
         debug_row.connect("notify::active", self._on_debug_changed)
         diag_group.add(debug_row)
+
+        doctor_row = Adw.ActionRow(
+            title="System Diagnostics Check",
+            subtitle="Verify GStreamer plugins, ScreenCast portal, and display server compatibility",
+        )
+        doctor_btn = Gtk.Button(label="Run Check", valign=Gtk.Align.CENTER)
+        doctor_btn.add_css_class("suggested-action")
+        doctor_btn.connect("clicked", lambda _b: self._show_doctor_dialog(prefs_win))
+        doctor_row.add_suffix(doctor_btn)
+        doctor_row.set_activatable_widget(doctor_btn)
+        diag_group.add(doctor_row)
+
         advanced_page.add(diag_group)
 
         prefs_win.add(advanced_page)
         prefs_win.present()
+
+    def _show_doctor_dialog(self, parent_window: Gtk.Window | None = None) -> None:
+        from .doctor import run_diagnostics
+
+        report = run_diagnostics()
+
+        win = Adw.PreferencesWindow(
+            transient_for=parent_window or self,
+            title="System Compatibility Report",
+            default_width=620,
+            default_height=520,
+        )
+
+        page = Adw.PreferencesPage(
+            title="Diagnostics",
+            icon_name="system-run-symbolic",
+        )
+
+        summary_group = Adw.PreferencesGroup(
+            title="Environment",
+            description=f"{report.distro_name} ({report.display_server.upper()})",
+        )
+
+        status_row = Adw.ActionRow(
+            title="Compatibility Status",
+            subtitle="All checks passed. System is fully compatible."
+            if report.overall_status == "ok"
+            else f"Status: {report.overall_status.capitalize()}",
+        )
+        status_icon = (
+            "emblem-ok-symbolic"
+            if report.overall_status == "ok"
+            else ("dialog-warning-symbolic" if report.overall_status == "warning" else "dialog-error-symbolic")
+        )
+        status_img = Gtk.Image.new_from_icon_name(status_icon)
+        status_row.add_prefix(status_img)
+        summary_group.add(status_row)
+        page.add(summary_group)
+
+        if report.missing_packages or report.issues:
+            issues_group = Adw.PreferencesGroup(
+                title="Recommended Action",
+                description="Install missing system packages to enable all features",
+            )
+            for issue in report.issues:
+                row = Adw.ActionRow(
+                    title=issue.title,
+                    subtitle=issue.remediation,
+                )
+                icon = Gtk.Image.new_from_icon_name(
+                    "dialog-error-symbolic" if issue.severity == "error" else "dialog-warning-symbolic"
+                )
+                row.add_prefix(icon)
+                issues_group.add(row)
+
+            if report.fix_command:
+                cmd_row = Adw.ActionRow(
+                    title="Install Command",
+                    subtitle=report.fix_command,
+                )
+                copy_btn = Gtk.Button(label="Copy Command", valign=Gtk.Align.CENTER)
+                copy_btn.add_css_class("suggested-action")
+
+                def _copy_cmd(_b):
+                    clipboard = self.get_clipboard()
+                    clipboard.set(report.fix_command)
+                    self.show_toast("Command copied to clipboard")
+
+                copy_btn.connect("clicked", _copy_cmd)
+                cmd_row.add_suffix(copy_btn)
+                issues_group.add(cmd_row)
+
+            page.add(issues_group)
+
+        checks_group = Adw.PreferencesGroup(title="Subsystem Checks")
+        for check in report.checks:
+            row = Adw.ActionRow(
+                title=check.name,
+                subtitle=check.details,
+            )
+            check_icon = (
+                "emblem-ok-symbolic"
+                if check.passed
+                else ("dialog-warning-symbolic" if check.severity == "warning" else "dialog-error-symbolic")
+            )
+            row.add_prefix(Gtk.Image.new_from_icon_name(check_icon))
+            checks_group.add(row)
+        page.add(checks_group)
+
+        win.add(page)
+        win.present()
 
     def _on_timeout_changed(self, row, _pspec) -> None:
         self._config.connection_timeout = int(row.get_value())
@@ -1277,6 +1391,11 @@ class MainWindow(Adw.ApplicationWindow):
         idx = row.get_selected()
         qualities = {0: "low_latency", 1: "balanced", 2: "high_quality"}
         self._config.stream_quality = qualities.get(idx, "balanced")
+        save_config(self._config)
+
+    def _on_stream_codec_changed(self, row, _pspec) -> None:
+        idx = row.get_selected()
+        self._config.stream_codec = "jpeg" if idx == 1 else "h264"
         save_config(self._config)
 
     def _apply_theme(self) -> None:
@@ -2170,11 +2289,18 @@ class MainWindow(Adw.ApplicationWindow):
                         async with ProjectorClient(device.address, device.device_type) as client:
                             await client.set_source("53")  # LAN/Network input
                     asyncio.run(switch_to_lan())
-                    GLib.idle_add(self.show_toast, "Switched projector to LAN input")
                 except Exception as ex:
                     log.info("Auto-switch to LAN source skipped: %s", ex)
 
-                sink = RtpUdpSink()
+                from .cast import JpegRtpSink
+
+                codec = getattr(self._config, "stream_codec", "h264")
+                if codec == "jpeg" or (hasattr(device, "capabilities") and "jpeg_rect" in device.capabilities and "mpeg4_avc" not in device.capabilities):
+                    sink = JpegRtpSink()
+                    log.info("Using JpegRtpSink for %s", target.host)
+                else:
+                    sink = RtpUdpSink()
+                    log.info("Using RtpUdpSink (H.264) for %s", target.host)
                 self._caster = ScreenCaster(
                     sink=sink,
                     audio_enabled=audio_enabled,

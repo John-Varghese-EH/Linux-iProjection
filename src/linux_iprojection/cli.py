@@ -5,10 +5,11 @@ linux-iprojection command line interface.
 import argparse
 import asyncio
 import dataclasses
+import inspect
 import json
 import sys
 
-from .cast import TEST_PATTERNS, CastTarget, RtpUdpSink, ScreenCaster
+from .cast import TEST_PATTERNS, CastTarget, JpegRtpSink, RtpUdpSink, ScreenCaster
 from .client import ProjectorClient, wake_on_lan
 from .config import MacroStore
 from .discovery import discover_all
@@ -287,8 +288,9 @@ async def _cast(args):
         audio_port=args.audio_port,
         name=args.ip,
     )
+    sink = JpegRtpSink() if getattr(args, "codec", "h264") == "jpeg" else RtpUdpSink()
     caster = ScreenCaster(
-        sink=RtpUdpSink(),
+        sink=sink,
         audio_enabled=not args.no_audio,
         stream_quality=args.quality,
         on_stats=lambda s: None,
@@ -423,6 +425,13 @@ async def _export(args):
             print(f"Exported status to {args.file}.")
         else:
             print(data)
+
+
+def _doctor(_args):
+    from .doctor import print_doctor_report, run_diagnostics
+
+    report = run_diagnostics()
+    print_doctor_report(report)
 
 
 def main():
@@ -567,8 +576,12 @@ Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
     cast_parser.add_argument("--no-audio", action="store_true", help="Disable audio streaming")
     cast_parser.add_argument("--quality", choices=["low_latency", "balanced", "high_quality"], default="balanced",
                              help="Stream quality preset")
-    cast_parser.add_argument("--switch-source", action="store_true",
-                             help="Automatically switch projector to LAN source before casting")
+    cast_parser.add_argument("--codec", choices=["h264", "jpeg"], default="h264",
+                             help="Stream format: h264 (default) or jpeg (for legacy EasyMP models)")
+    cast_parser.add_argument("--switch-source", action="store_true", default=True,
+                             help="Automatically switch projector to LAN source before casting (default: enabled)")
+    cast_parser.add_argument("--no-switch-source", dest="switch_source", action="store_false",
+                             help="Do not automatically switch projector to LAN source before casting")
 
     # Test Pattern
     tp_parser = subparsers.add_parser("test-pattern", help="Send a test pattern to projector")
@@ -588,6 +601,10 @@ Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
 
     # Firewall
     subparsers.add_parser("firewall", help="Configure Linux firewall for iProjection ports")
+
+    # System Doctor / Diagnostics
+    subparsers.add_parser("doctor", help="Run comprehensive system diagnostics and check compatibility")
+    subparsers.add_parser("check", help="Alias for doctor")
 
     args = parser.parse_args()
 
@@ -617,6 +634,8 @@ Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
         "test-pattern": _test_pattern,
         "pjlink": _pjlink,
         "firewall": lambda a: __import__("linux_iprojection.firewall", fromlist=[""]).configure_firewall(),
+        "doctor": _doctor,
+        "check": _doctor,
     }
 
     try:
@@ -627,7 +646,7 @@ Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
                 asyncio.run(_macro_list(args))
         elif args.command in handlers:
             handler = handlers[args.command]
-            if asyncio.iscoroutinefunction(handler):
+            if inspect.iscoroutinefunction(handler):
                 asyncio.run(handler(args))
             else:
                 handler(args)

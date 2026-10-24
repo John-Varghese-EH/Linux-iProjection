@@ -57,6 +57,16 @@ def test_build_pipeline_ximagesrc_fallback(monkeypatch):
     assert "ximagesrc" in pipeline
 
 
+def test_build_pipeline_jpeg_sink():
+    caster = ScreenCaster(sink=JpegRtpSink(), audio_enabled=False)
+    target = CastTarget(host="192.168.1.50", port=5004)
+    pipeline = caster._build_pipeline(target, node_id=12, is_file=False)
+    assert "pipewiresrc path=12" in pipeline
+    assert "jpegenc" in pipeline
+    assert "rtpjpegpay" in pipeline
+    assert "h264parse" not in pipeline
+
+
 @pytest.mark.asyncio
 async def test_screencaster_user_cancelled(monkeypatch):
     from linux_iprojection.cast import UserCancelledError

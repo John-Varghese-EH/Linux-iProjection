@@ -26,8 +26,8 @@ def _run_cmd(cmd: list[str]) -> tuple[int, str, str]:
         return -1, "", str(e)
 
 def is_ufw_active() -> bool:
-    code, stdout, _ = _run_cmd(["sudo", "ufw", "status"])
-    return code == 0 and "Status: active" in stdout
+    code, stdout, _ = _run_cmd(["systemctl", "is-active", "ufw"])
+    return code == 0 and stdout == "active"
 
 def is_firewalld_active() -> bool:
     code, stdout, _ = _run_cmd(["systemctl", "is-active", "firewalld"])
