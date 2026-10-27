@@ -9,23 +9,79 @@ on:
 jobs:
   lint-and-test:
     runs-on: ubuntu-24.04
-    
+
     steps:
     - uses: actions/checkout@v5
 
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y python3-gi python3-gi-cairo gir1.2-gtk-4.0 libadwaita-1-dev gir1.2-gstreamer-1.0 gir1.2-gst-plugins-base-1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good python3-pytest python3-pip python3-venv xvfb
-        
+        sudo apt-get install -y python3-gi python3-gi-cairo gir1.2-gtk-4.0 libadwaita-1-dev \
+          gir1.2-gstreamer-1.0 gir1.2-gst-plugins-base-1.0 \
+          gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly gstreamer1.0-tools \
+          python3-pytest python3-pip python3-venv python3-distro xvfb
+
     - name: Install Python dependencies
       run: |
         python3 -m venv .venv --system-site-packages
         .venv/bin/pip install --upgrade pip
         .venv/bin/pip install -e ".[dev]"
-        
+
     - name: Check code formatting and linting
       run: .venv/bin/ruff check src/ tests/
-        
+
+    - name: Verify GStreamer H.264 encoder discovery
+      run: |
+        gst-inspect-1.0 x264enc >/dev/null 2>&1 && echo "x264enc OK" || { echo "x264enc MISSING"; exit 1; }
+
+    - name: Run synthetic H.264 encode test
+      run: bash tests/gstreamer/encode_test.sh
+
     - name: Run test suite
       run: xvfb-run -a .venv/bin/python -m pytest tests/ -v
+
+  flatpak:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Install Flatpak tooling
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y flatpak flatpak-builder appstream
+
+    - name: Add Flathub remote and install GNOME 48 SDK
+      run: |
+        flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+        flatpak install --user -y flathub org.gnome.Platform//48 org.gnome.Sdk//48
+
+    - name: Build Flatpak
+      run: |
+        flatpak-builder --user --force-clean --repo=repo build-dir \
+          packaging/flatpak/dev.linux_iprojection.LinuxIProjection.yml
+
+    - name: Verify x264enc is bundled in the sandbox
+      run: |
+        flatpak-builder --run build-dir packaging/flatpak/dev.linux_iprojection.LinuxIProjection.yml \
+          gst-inspect-1.0 x264enc
+
+    - name: Run synthetic H.264 encode test in the sandbox
+      run: |
+        flatpak-builder --run build-dir packaging/flatpak/dev.linux_iprojection.LinuxIProjection.yml \
+          bash tests/gstreamer/encode_test.sh
+
+    - name: Build the distributable bundle
+      run: |
+        mkdir -p dist
+        flatpak build-bundle repo dist/linux-iprojection-nixos-x86_64.flatpak dev.linux_iprojection.LinuxIProjection
+        sha256sum dist/linux-iprojection-nixos-x86_64.flatpak > dist/SHA256SUMS.txt
+
+    - name: Upload Flatpak bundle artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-iprojection-flatpak
+        path: |
+          dist/linux-iprojection-nixos-x86_64.flatpak
+          dist/SHA256SUMS.txt
+        if-no-files-found: error
