@@ -17,6 +17,7 @@ def main():
         "brightness", "contrast", "keystone", "raw", "info",
         "macro", "export", "cast", "test-pattern", "pjlink",
         "firewall", "moderator", "whiteboard", "fcn", "encrypt",
+        "doctor", "check",
         "-h", "--help",
     }
 
