@@ -140,8 +140,18 @@ class JpegRtpSink(CastSink):
 # Encoder detection
 
 
+class EncoderUnavailableError(Exception):
+    """Raised when no usable H.264 encoder plugin is available in the runtime."""
+
+
 def _probe_encoder(preset: EncoderPreset = EncoderPreset.AUTO, quality: str = "balanced") -> str:
-    """Detect best available H.264 encoder. Falls back to x264enc."""
+    """Detect the best available H.264 encoder.
+
+    Returns an element+parameters description ready for gst-launch. Raises
+    ``EncoderUnavailableError`` when no H.264 encoder can be found so callers
+    can surface an actionable message instead of a cryptic ``no element``
+    pipeline parse error.
+    """
     _ensure_gst()
     registry = Gst.Registry.get()
 
@@ -184,8 +194,20 @@ def _probe_encoder(preset: EncoderPreset = EncoderPreset.AUTO, quality: str = "b
             log.info("Encoder selected: %s (%s)", element_name, enc_preset.name)
             return element_str
 
-    log.warning("No HW encoder found - using x264enc (software)")
-    return f"x264enc {x264_params}"
+    raise EncoderUnavailableError(
+        "No H.264 encoder is available in the runtime. Install the GStreamer "
+        "H.264 encoder plugin (x264enc from gst-plugins-ugly, or openh264enc "
+        "from gst-plugins-bad) and restart the application."
+    )
+
+
+def _probe_software_encoder(quality: str = "balanced") -> str:
+    """Return a verified-available software H.264 encoder, or raise.
+
+    Used by the pipeline fallback paths so a missing ``x264enc`` never gets
+    injected into a pipeline that cannot load it.
+    """
+    return _probe_encoder(EncoderPreset.SOFTWARE, quality)
 
 
 def _probe_audio_encoder() -> tuple[str, str]:
@@ -499,7 +521,15 @@ class ScreenCaster:
             await self._prepare_projector_for_stream(target)
 
         # Build the pipeline
-        pipeline_str = self._build_pipeline(target, node_id, is_file)
+        try:
+            pipeline_str = self._build_pipeline(target, node_id, is_file)
+        except EncoderUnavailableError as e:
+            log.error("Encoder unavailable: %s", e)
+            self.last_error = str(e)
+            if self.on_error:
+                self.on_error(str(e))
+            self.stop()
+            return False
         log.info("GStreamer pipeline: %s", pipeline_str)
 
         try:
@@ -509,6 +539,7 @@ class ScreenCaster:
             self.last_error = f"Pipeline parse error: {e}"
             if self.on_error:
                 self.on_error(self.last_error)
+            self.stop()
             return False
 
         # Bus monitoring
@@ -522,10 +553,14 @@ class ScreenCaster:
             log.warning("Pipeline failed to start. Attempting fallbacks...")
             self._pipeline.set_state(Gst.State.NULL)
             bus.remove_signal_watch()
+            self._bus_watch_id = None
+
+            use_audio = self.audio_enabled
 
             # Fallback 1: Try video-only (audio devices frequently fail on Linux)
             if self.audio_enabled and not is_file:
                 log.info("Attempting video-only fallback...")
+                use_audio = False
                 pipeline_str = self._build_pipeline(target, node_id, is_file, enable_audio=False)
                 try:
                     self._pipeline = Gst.parse_launch(pipeline_str)
@@ -537,17 +572,31 @@ class ScreenCaster:
                     log.warning("Video-only parse error: %s", ex)
                     ret = Gst.StateChangeReturn.FAILURE
 
-            # Fallback 2: Force software x264enc encoder
+            # Fallback 2: Force a verified-available software encoder
             if ret == Gst.StateChangeReturn.FAILURE:
-                log.warning("Hardware encoder failed, falling back to software x264enc")
+                log.warning("Hardware encoder failed, falling back to software encoder")
                 if self._pipeline:
                     self._pipeline.set_state(Gst.State.NULL)
                     bus.remove_signal_watch()
+                    self._bus_watch_id = None
 
-                safe_encoder = "x264enc bitrate=4000 speed-preset=veryfast tune=zerolatency key-int-max=30"
-                encoder = _probe_encoder(self.encoder_preset, self.stream_quality)
-                pipeline_str = pipeline_str.replace(encoder, safe_encoder)
+                try:
+                    software_encoder = _probe_software_encoder(self.stream_quality)
+                except EncoderUnavailableError as exc:
+                    log.error("No software H.264 encoder available for fallback: %s", exc)
+                    self.last_error = str(exc)
+                    if self.on_error:
+                        self.on_error(str(exc))
+                    self.stop()
+                    return False
 
+                pipeline_str = self._build_pipeline(
+                    target,
+                    node_id,
+                    is_file,
+                    enable_audio=use_audio,
+                    encoder_override=software_encoder,
+                )
                 try:
                     self._pipeline = Gst.parse_launch(pipeline_str)
                     bus = self._pipeline.get_bus()
@@ -559,6 +608,7 @@ class ScreenCaster:
                     self.last_error = f"Fallback pipeline parse error: {e}"
                     if self.on_error:
                         self.on_error(self.last_error)
+                    self.stop()
                     return False
 
             if ret == Gst.StateChangeReturn.FAILURE:
@@ -566,6 +616,7 @@ class ScreenCaster:
                 self.last_error = "Failed to start stream (check GStreamer hardware & software plugins)"
                 if self.on_error:
                     self.on_error(self.last_error)
+                self.stop()
                 return False
 
         self._error_count = 0
@@ -611,6 +662,17 @@ class ScreenCaster:
                 target.host, e,
             )
 
+    def _build_test_pattern_pipeline(self, target: CastTarget, pattern_id: int, encoder: str) -> str:
+        """Construct the test-pattern pipeline description string."""
+        video_sink = self.sink.build_sink_bin(target)
+        return (
+            f"videotestsrc pattern={pattern_id} is-live=true ! "
+            "video/x-raw,width=1920,height=1080,framerate=30/1 ! "
+            "videoconvert ! videoscale ! videoconvert ! "
+            f"{encoder} ! h264parse ! "
+            f"{video_sink}"
+        )
+
     async def start_test_pattern(self, target: CastTarget, pattern: str = "smpte") -> bool:
         """Start casting a GStreamer test pattern instead of screen capture.
 
@@ -624,25 +686,27 @@ class ScreenCaster:
         _ensure_gst()
 
         pattern_id = TEST_PATTERNS.get(pattern, 0)
-        encoder = _probe_encoder(self.encoder_preset, self.stream_quality)
-        sink = self.sink
-        video_sink = sink.build_sink_bin(target)
 
-        pipeline_str = (
-            f"videotestsrc pattern={pattern_id} is-live=true ! "
-            "video/x-raw,width=1920,height=1080,framerate=30/1 ! "
-            "videoconvert ! videoscale ! videoconvert ! "
-            f"{encoder} ! h264parse ! "
-            f"{video_sink}"
-        )
+        try:
+            encoder = _probe_encoder(self.encoder_preset, self.stream_quality)
+        except EncoderUnavailableError as e:
+            log.error("Encoder unavailable: %s", e)
+            self.last_error = str(e)
+            if self.on_error:
+                self.on_error(str(e))
+            return False
+
+        pipeline_str = self._build_test_pattern_pipeline(target, pattern_id, encoder)
         log.info("Test pattern pipeline: %s", pipeline_str)
 
         try:
             self._pipeline = Gst.parse_launch(pipeline_str)
         except Exception as e:
             log.error("Failed to parse test pattern pipeline: %s", e)
+            self.last_error = f"Pipeline parse error: {e}"
             if self.on_error:
-                self.on_error(f"Pipeline error: {e}")
+                self.on_error(self.last_error)
+            self.stop()
             return False
 
         bus = self._pipeline.get_bus()
@@ -651,31 +715,44 @@ class ScreenCaster:
 
         ret = self._pipeline.set_state(Gst.State.PLAYING)
         if ret == Gst.StateChangeReturn.FAILURE:
-            log.warning("Hardware encoder failed to start, falling back to software x264enc")
+            log.warning("Hardware encoder failed to start, falling back to software encoder")
             self._pipeline.set_state(Gst.State.NULL)
             bus.remove_signal_watch()
-            
-            # Re-probe forcing AUTO software fallback (x264enc)
-            safe_encoder = "x264enc bitrate=4000 speed-preset=veryfast tune=zerolatency key-int-max=30"
-            pipeline_str = pipeline_str.replace(encoder, safe_encoder)
-            
+            self._bus_watch_id = None
+
+            try:
+                software_encoder = _probe_software_encoder(self.stream_quality)
+            except EncoderUnavailableError as exc:
+                log.error("No software H.264 encoder available for fallback: %s", exc)
+                self.last_error = str(exc)
+                if self.on_error:
+                    self.on_error(str(exc))
+                self.stop()
+                return False
+
+            pipeline_str = self._build_test_pattern_pipeline(target, pattern_id, software_encoder)
+
             try:
                 self._pipeline = Gst.parse_launch(pipeline_str)
             except Exception as e:
                 log.error("Failed to parse fallback pipeline: %s", e)
+                self.last_error = f"Fallback pipeline parse error: {e}"
                 if self.on_error:
-                    self.on_error(f"Fallback pipeline error: {e}")
+                    self.on_error(self.last_error)
+                self.stop()
                 return False
 
             bus = self._pipeline.get_bus()
             bus.add_signal_watch()
             self._bus_watch_id = bus.connect("message", self._on_bus_message)
-            
+
             ret = self._pipeline.set_state(Gst.State.PLAYING)
             if ret == Gst.StateChangeReturn.FAILURE:
                 log.error("Failed to start test pattern even with fallback")
+                self.last_error = "Failed to start pipeline (Hardware & Software encoding both failed)"
                 if self.on_error:
-                    self.on_error("Failed to start pipeline (Hardware & Software encoding both failed)")
+                    self.on_error(self.last_error)
+                self.stop()
                 return False
 
         self._error_count = 0
@@ -688,9 +765,13 @@ class ScreenCaster:
         return True
 
     def stop(self) -> None:
-        """Stop the pipeline and free resources."""
-        if not self._is_casting:
-            return
+        """Stop the pipeline and free all resources (idempotent).
+
+        Always releases the portal session and pipeline state, even when a
+        failure occurred before casting fully started, so that a failed
+        start()/start_test_pattern() does not leak the PipeWire capture.
+        """
+        was_casting = self._is_casting
         self._is_casting = False
 
         if self._stats_timeout_id:
@@ -703,6 +784,7 @@ class ScreenCaster:
                 bus = self._pipeline.get_bus()
                 if bus:
                     bus.remove_signal_watch()
+            self._bus_watch_id = None
             self._pipeline = None
 
         # Close the portal session to release the PipeWire capture
@@ -710,7 +792,8 @@ class ScreenCaster:
 
         self._target = None
         self._active_pattern = None
-        log.info("Casting stopped")
+        if was_casting:
+            log.info("Casting stopped")
 
     def _build_pipeline(
         self,
@@ -718,6 +801,7 @@ class ScreenCaster:
         node_id: int | None,
         is_file: bool,
         enable_audio: bool | None = None,
+        encoder_override: str | None = None,
     ) -> str:
         """Construct the full pipeline description string."""
         # Video source
@@ -734,7 +818,10 @@ class ScreenCaster:
                 log.info("Using videotestsrc pattern fallback for stream")
 
         # Encoder
-        encoder = _probe_encoder(self.encoder_preset, self.stream_quality)
+        if encoder_override:
+            encoder = encoder_override
+        else:
+            encoder = _probe_encoder(self.encoder_preset, self.stream_quality)
 
         # Sink
         if is_file:
