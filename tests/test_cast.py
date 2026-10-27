@@ -15,14 +15,25 @@ from linux_iprojection.cast import (
 
 
 def test_probe_encoder_auto():
-    # Should return a string that is a valid element + config, or raise a clear
-    # error when no encoder is available in the environment.
+    # Should return a usable H.264 encoder (a known element name), or raise a
+    # clear error when no encoder is available in the environment.
     try:
         encoder_str = _probe_encoder(preset=EncoderPreset.AUTO)
     except EncoderUnavailableError:
         pytest.skip("No H.264 encoder available in this environment")
-    assert isinstance(encoder_str, str)
-    assert "enc" in encoder_str
+
+    known_encoders = {
+        "x264enc",
+        "openh264enc",
+        "vah264enc",
+        "vaapih264enc",
+        "nvh264enc",
+        "nvautogpuh264enc",
+        "nvv4l2h264enc",
+    }
+    element_name = encoder_str.split(" ", 1)[0]
+    assert element_name in known_encoders, f"unexpected encoder {element_name!r}"
+    assert element_name.endswith("enc")
 
 
 def test_probe_encoder_raises_when_no_encoder_available(monkeypatch):
@@ -54,6 +65,71 @@ def test_probe_software_encoder_raises_when_none(monkeypatch):
     monkeypatch.setattr("linux_iprojection.cast.Gst.Registry.get", lambda: registry)
     with pytest.raises(EncoderUnavailableError):
         _probe_software_encoder("balanced")
+
+
+def test_probe_encoder_hw_preset_falls_back_to_software(monkeypatch):
+    # A hardware preset (VAAPI/NVENC) with no matching encoder must fall back to
+    # an available software encoder rather than raising.
+    registry = mock.MagicMock()
+
+    def lookup(name):
+        return name if name == "openh264enc" else None
+
+    registry.lookup_feature.side_effect = lookup
+    monkeypatch.setattr("linux_iprojection.cast.Gst.Registry.get", lambda: registry)
+
+    encoder_str = _probe_encoder(preset=EncoderPreset.VAAPI)
+    assert encoder_str.startswith("openh264enc")
+
+
+def test_stop_closes_only_own_portal_session(monkeypatch):
+    # Regression: stop() must close only this caster's portal session, not a
+    # shared/global one that another caster owns.
+    closed = []
+    monkeypatch.setattr("linux_iprojection.cast._close_session", lambda h: closed.append(h))
+
+    caster1 = ScreenCaster(sink=RtpUdpSink())
+    caster2 = ScreenCaster(sink=RtpUdpSink())
+    caster1._portal_session_handle = "session-A"
+    caster2._portal_session_handle = "session-B"
+
+    caster1.stop()
+
+    assert closed == ["session-A"]
+    assert caster1._portal_session_handle is None
+    assert caster2._portal_session_handle == "session-B"
+
+
+@pytest.mark.asyncio
+async def test_stop_during_portal_request_cancels_start(monkeypatch):
+    # When the user stops casting while the portal prompt is pending, the
+    # in-flight start() must not install/start the pipeline afterwards.
+    caster = ScreenCaster(sink=RtpUdpSink())
+
+    async def mock_portal(*args, **kwargs):
+        caster.stop()
+        return (42, "session-handle")
+
+    monkeypatch.setattr("linux_iprojection.cast._request_portal_stream", mock_portal)
+    monkeypatch.setattr("linux_iprojection.cast._close_session", lambda h: None)
+
+    target = CastTarget(host="192.168.1.50", port=5004)
+    success = await caster.start(target)
+
+    assert success is False
+    assert caster.is_casting is False
+
+
+def test_build_pipeline_jpeg_skips_h264_probe(monkeypatch):
+    def fail_probe(*a, **k):
+        raise AssertionError("H.264 encoder must not be probed for a JPEG sink")
+
+    monkeypatch.setattr("linux_iprojection.cast._probe_encoder", fail_probe)
+    caster = ScreenCaster(sink=JpegRtpSink(), audio_enabled=False)
+    target = CastTarget(host="192.168.1.50", port=5004)
+    pipeline = caster._build_pipeline(target, node_id=12, is_file=False)
+    assert "jpegenc" in pipeline
+    assert "h264parse" not in pipeline
 
 def test_rtp_udp_sink_bin():
     target = CastTarget(host="192.168.1.10", port=5004)

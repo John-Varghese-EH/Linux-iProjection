@@ -19,7 +19,7 @@ import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 import gi
 
@@ -31,7 +31,6 @@ from gi.repository import Gio, GLib, Gst  # noqa: E402
 log = logging.getLogger(__name__)
 
 _portal_token_counter = 0
-_portal_session_handle: str | None = None
 
 # Lazy init - don't call Gst.init at import time
 _gst_initialized = False
@@ -194,6 +193,17 @@ def _probe_encoder(preset: EncoderPreset = EncoderPreset.AUTO, quality: str = "b
             log.info("Encoder selected: %s (%s)", element_name, enc_preset.name)
             return element_str
 
+    # A specific hardware preset may be unavailable (e.g. no VA-API/NVENC
+    # driver); fall back to any installed software encoder rather than failing.
+    if preset in (EncoderPreset.VAAPI, EncoderPreset.NVENC):
+        log.warning("Requested %s encoder unavailable, falling back to software", preset.name)
+        for enc_preset, element_name, element_str in candidates:
+            if enc_preset != EncoderPreset.SOFTWARE:
+                continue
+            if registry.lookup_feature(element_name):
+                log.info("Encoder selected: %s (%s)", element_name, enc_preset.name)
+                return element_str
+
     raise EncoderUnavailableError(
         "No H.264 encoder is available in the runtime. Install the GStreamer "
         "H.264 encoder plugin (x264enc from gst-plugins-ugly, or openh264enc "
@@ -233,11 +243,12 @@ class PortalError(Exception):
     """Raised when xdg-desktop-portal ScreenCast is unavailable or fails."""
 
 
-async def _request_portal_stream(virtual: bool = False) -> Optional[int]:
-    """Walk the xdg-desktop-portal ScreenCast flow and return a PipeWire node ID.
+async def _request_portal_stream(virtual: bool = False) -> tuple[int, str]:
+    """Walk the xdg-desktop-portal ScreenCast flow and return (node_id, session_handle).
 
-    Returns None if the user cancels the dialog or something goes wrong.
-    Uses Gio.DBusProxy (no extra dependency beyond PyGObject).
+    The session handle is returned so the caller can own and close exactly its
+    own session. On any failure path the partially-created session is closed
+    before the error is raised, so failed attempts do not leak portal sessions.
     """
     try:
         bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
@@ -301,6 +312,7 @@ async def _request_portal_stream(virtual: bool = False) -> Optional[int]:
         finally:
             request_proxy.disconnect(handler_id)
 
+    session_handle = ""
     try:
         # Step 1: CreateSession
         session_token = f"session_{token}"
@@ -361,35 +373,31 @@ async def _request_portal_stream(virtual: bool = False) -> Optional[int]:
 
         streams = start_result.get("streams", [])
         if not streams:
-            log.warning("Portal returned no streams")
-            return None
+            raise PortalError("ScreenCast portal returned no video streams")
 
         node_id = int(streams[0][0])
         log.info("PipeWire node ID: %d", node_id)
 
-        # Save session handle for cleanup
-        global _portal_session_handle
-        _portal_session_handle = session_handle
-
-        return node_id
+        return node_id, session_handle
 
     except UserCancelledError:
+        _close_session(session_handle)
         raise
     except Exception as e:
+        _close_session(session_handle)
         log.warning("Portal ScreenCast failed: %s", e)
         raise PortalError(str(e)) from e
 
 
-def _close_portal_session() -> None:
-    """Close the active XDG Desktop Portal ScreenCast session."""
-    global _portal_session_handle
-    if _portal_session_handle is None:
+def _close_session(session_handle: str | None) -> None:
+    """Close a single XDG Desktop Portal ScreenCast session by handle."""
+    if not session_handle:
         return
     try:
         bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         bus.call_sync(
             "org.freedesktop.portal.Desktop",
-            _portal_session_handle,
+            session_handle,
             "org.freedesktop.portal.Session",
             "Close",
             None,
@@ -398,10 +406,9 @@ def _close_portal_session() -> None:
             1000,
             None,
         )
-        log.info("Portal session closed: %s", _portal_session_handle)
+        log.info("Portal session closed: %s", session_handle)
     except Exception as e:
         log.debug("Portal session close failed (may already be closed): %s", e)
-    _portal_session_handle = None
 
 
 # Pipeline manager
@@ -450,6 +457,11 @@ class ScreenCaster:
         self.last_error: str | None = None
         self.user_cancelled: bool = False
 
+        # Portal session owned by this caster instance (never shared).
+        self._portal_session_handle: str | None = None
+        # Bumped on every stop() to invalidate an in-flight start().
+        self._start_epoch: int = 0
+
     @property
     def active_pattern(self) -> str | None:
         """Return the name of the active test pattern, or None if screen casting."""
@@ -471,6 +483,12 @@ class ScreenCaster:
         self.last_error = None
         self.user_cancelled = False
 
+        # Capture the current start generation; stop() bumps it to cancel an
+        # in-flight start() so a user stop during the portal prompt does not
+        # later install and start the pipeline.
+        self._start_epoch += 1
+        epoch = self._start_epoch
+
         _ensure_gst()
 
         # Determine if this is a dry-run (file target)
@@ -484,9 +502,10 @@ class ScreenCaster:
 
         # Get PipeWire node for real casting
         node_id = None
+        session_handle: str | None = None
         if not is_file:
             try:
-                node_id = await _request_portal_stream(virtual=virtual)
+                node_id, session_handle = await _request_portal_stream(virtual=virtual)
             except UserCancelledError:
                 log.info("User cancelled screen sharing portal dialog")
                 self.user_cancelled = True
@@ -517,8 +536,22 @@ class ScreenCaster:
                     self.on_error(err_msg)
                 return False
 
+            # A stop() may have raced the portal prompt; cancel rather than start.
+            if epoch != self._start_epoch:
+                log.info("Screen casting was stopped while the portal request was pending")
+                _close_session(session_handle)
+                self._portal_session_handle = None
+                return False
+
+            # Own the portal session so only this caster closes it.
+            self._portal_session_handle = session_handle
+
             # Switch projector to LAN input (source 53) and wake up if in standby
             await self._prepare_projector_for_stream(target)
+
+            if epoch != self._start_epoch:
+                log.info("Screen casting was stopped while preparing the projector")
+                return False
 
         # Build the pipeline
         try:
@@ -683,6 +716,8 @@ class ScreenCaster:
             log.warning("Already casting, stop first")
             return False
 
+        self.last_error = None
+
         _ensure_gst()
 
         pattern_id = TEST_PATTERNS.get(pattern, 0)
@@ -767,12 +802,14 @@ class ScreenCaster:
     def stop(self) -> None:
         """Stop the pipeline and free all resources (idempotent).
 
-        Always releases the portal session and pipeline state, even when a
-        failure occurred before casting fully started, so that a failed
-        start()/start_test_pattern() does not leak the PipeWire capture.
+        Always releases this caster's portal session and pipeline state, even
+        when a failure occurred before casting fully started, so that a failed
+        start()/start_test_pattern() does not leak the PipeWire capture. It
+        also cancels any in-flight start() via the start generation counter.
         """
         was_casting = self._is_casting
         self._is_casting = False
+        self._start_epoch += 1  # invalidate any pending start()
 
         if self._stats_timeout_id:
             GLib.source_remove(self._stats_timeout_id)
@@ -787,8 +824,9 @@ class ScreenCaster:
             self._bus_watch_id = None
             self._pipeline = None
 
-        # Close the portal session to release the PipeWire capture
-        _close_portal_session()
+        # Close this caster's portal session to release the PipeWire capture
+        _close_session(self._portal_session_handle)
+        self._portal_session_handle = None
 
         self._target = None
         self._active_pattern = None
@@ -817,18 +855,20 @@ class ScreenCaster:
                 video_src = "videotestsrc pattern=smpte is-live=true"
                 log.info("Using videotestsrc pattern fallback for stream")
 
-        # Encoder
-        if encoder_override:
-            encoder = encoder_override
-        else:
-            encoder = _probe_encoder(self.encoder_preset, self.stream_quality)
-
-        # Sink
+        # Sink (determined first so JPEG does not probe an H.264 encoder it never uses)
         if is_file:
             sink = FileDumpSink()
         else:
             sink = self.sink
         video_sink = sink.build_sink_bin(target)
+
+        # Encoder
+        if isinstance(sink, JpegRtpSink):
+            encoder = ""
+        elif encoder_override:
+            encoder = encoder_override
+        else:
+            encoder = _probe_encoder(self.encoder_preset, self.stream_quality)
 
         # Determine target resolution and framerate
         w = target.width if target.width > 0 else self.width
