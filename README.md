@@ -80,14 +80,21 @@ See [docs/FLATPAK_NIXOS.md](docs/FLATPAK_NIXOS.md) for the full build, install,
 test, and troubleshooting guide.
 
 ### Build from Source
-To run the application via Python or deploy a development environment:
+The app needs the native PyGObject bindings plus GTK4, libadwaita, and GStreamer
+installed on the host (via your distro's package manager). Then run the app via
+Python:
+
 ```bash
 git clone https://github.com/John-Varghese-EH/Linux-iProjection.git
 cd Linux-iProjection
-python3 -m venv .venv
+python3 -m venv .venv --system-site-packages
 source .venv/bin/activate
 pip install -e .
+linux-iprojection
 ```
+
+On NixOS, the flake dev shell provides everything in one step (`nix develop`),
+see the [NixOS](#nixos) section.
 
 ## Command Line Interface
 
@@ -106,6 +113,12 @@ linux-iprojection source HDMI1 192.168.1.100
 
 # Retrieve real-time telemetry and hardware status
 linux-iprojection status 192.168.1.100
+
+# Run system diagnostics (GStreamer codecs, portal, display server)
+linux-iprojection doctor
+
+# Start screen casting
+linux-iprojection cast 192.168.1.100
 ```
 
 ## Contributing
@@ -116,6 +129,12 @@ To run the automated tests and linter locally:
 ```bash
 make test
 make lint
+```
+
+Or on NixOS, via the reproducible dev shell:
+```bash
+nix develop -c pytest tests/
+nix develop -c ruff check src/ tests/
 ```
 
 ## License & Attribution
