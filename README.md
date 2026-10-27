@@ -142,6 +142,8 @@ nix develop -c ruff check src/ tests/
 Architected & developed with ❤️ by **[John Varghese (J0X)](https://github.com/John-Varghese-EH)**. 
 - Connect with me on [LinkedIn](https://www.linkedin.com/in/John--Varghese).
 
+NixOS & Flatpak H.264 encoder fix contributed by **[NacreousDawn596](https://github.com/NacreousDawn596)** with the help of DeepSeek V4 Pro xhigh.
+
 This project is licensed under the **AGPL-3.0 License**. See the [LICENSE](LICENSE) file for the full legal text. 
 
 *Disclaimer: This is an unofficial, community-driven application and is not affiliated with, endorsed by, or sponsored by Seiko Epson Corporation.*
