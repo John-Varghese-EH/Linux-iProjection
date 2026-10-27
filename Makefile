@@ -4,7 +4,7 @@ PYTHON ?= python3
 VERSION := $(shell $(PYTHON) -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
 APP_ID := dev.linux_iprojection.LinuxIProjection
 
-.PHONY: run test lint appimage flatpak deb aur dist-tar clean run-cli check-deps
+.PHONY: run test lint appimage flatpak flatpak-bundle flatpak-verify test-gstreamer deb aur dist-tar clean run-cli check-deps doctor
 
 run:
 	@echo "Starting linux-iprojection $(VERSION) …"
@@ -28,7 +28,28 @@ appimage:
 	bash packaging/build-appimage.sh
 
 flatpak:
-	flatpak-builder --user --install --force-clean build-dir packaging/flatpak/$(APP_ID).yml
+	@echo "Building Flatpak for linux-iprojection $(VERSION) …"
+	flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
+	flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build-dir packaging/flatpak/$(APP_ID).yml
+
+flatpak-bundle: flatpak
+	@echo "Packaging distributable .flatpak bundle …"
+	mkdir -p dist
+	flatpak build-bundle repo dist/linux-iprojection-nixos-x86_64.flatpak $(APP_ID)
+	@echo "Bundle: dist/linux-iprojection-nixos-x86_64.flatpak"
+	sha256sum dist/linux-iprojection-nixos-x86_64.flatpak
+
+flatpak-verify:
+	@echo "Verifying x264enc + synthetic encode inside the built sandbox …"
+	flatpak-builder --run build-dir packaging/flatpak/$(APP_ID).yml gst-inspect-1.0 x264enc
+	flatpak-builder --run build-dir packaging/flatpak/$(APP_ID).yml bash /app/share/linux-iprojection/tests/encode_test.sh
+
+test-gstreamer:
+	@echo "Running synthetic H.264 encode test on the host …"
+	bash tests/gstreamer/encode_test.sh
+
+doctor:
+	@$(PYTHON) -c "import sys; sys.path.insert(0, 'src'); from linux_iprojection.doctor import print_doctor_report, run_diagnostics; print_doctor_report(run_diagnostics())"
 
 deb:
 	@echo "Building Debian package for linux-iprojection $(VERSION) …"

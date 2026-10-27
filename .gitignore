@@ -19,6 +19,7 @@ build/
 build-deb/
 build-aur/
 build-dir/
+repo/
 .flatpak-builder/
 dist/
 *.deb

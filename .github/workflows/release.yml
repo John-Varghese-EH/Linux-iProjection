@@ -45,10 +45,10 @@ jobs:
         
     - name: Build Flatpak (.flatpak)
       run: |
-        sudo apt-get install -y flatpak flatpak-builder
+        sudo apt-get install -y flatpak flatpak-builder appstream
         flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
         flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build-dir packaging/flatpak/dev.linux_iprojection.LinuxIProjection.yml
-        flatpak build-bundle repo dist/linux-iprojection-linux.flatpak dev.linux_iprojection.LinuxIProjection
+        flatpak build-bundle repo dist/linux-iprojection-nixos-x86_64.flatpak dev.linux_iprojection.LinuxIProjection
         
     - name: Generate Checksums
       run: |

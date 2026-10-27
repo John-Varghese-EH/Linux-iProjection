@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "pytest-mock", "ruff"]
+dev = ["pytest", "pytest-asyncio", "pytest-mock", "ruff", "distro"]
 
 [project.urls]
 Homepage = "https://github.com/John-Varghese-EH/Linux-iProjection"
