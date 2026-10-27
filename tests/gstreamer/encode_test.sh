@@ -44,30 +44,51 @@ else
 fi
 
 # 3. Verify the output is a valid H.264 elementary stream --------------------
-#    h264parse emits length-prefixed AVCC by default, so rather than relying on
-#    typefind (which only matches Annex-B start codes) we check that the file
-#    contains the mandatory SPS (0x67) and PPS (0x68) NAL units of a real H.264
-#    encoded stream.
+#    h264parse emits length-prefixed AVCC by default, so we parse the
+#    length-prefixed NAL units and check that SPS (type 7), PPS (type 8) and
+#    IDR (type 5) units are present at valid unit boundaries rather than just
+#    scanning for coincidental byte values.
 if [ -s "$TMPDIR/out.h264" ]; then
     if python3 - "$TMPDIR/out.h264" <<'PYEOF'
+import struct
 import sys
+
 data = open(sys.argv[1], "rb").read()
-sps = b"\x67" in data[:4096]
-pps = b"\x68" in data[:4096]
-idr = b"\x65" in data
-if not sps:
-    print("FAIL: no SPS NAL unit found")
+
+def nal_units(buf):
+    """Yield NAL units from an AVCC (length-prefixed) H.264 byte stream."""
+    i = 0
+    n = len(buf)
+    while i + 4 <= n:
+        (size,) = struct.unpack(">I", buf[i:i + 4])
+        i += 4
+        if size == 0 or i + size > n:
+            break
+        yield buf[i:i + size]
+        i += size
+
+nal_types = set()
+for nal in nal_units(data):
+    if nal:
+        nal_types.add(nal[0] & 0x1F)  # nal_unit_type is the low 5 bits
+
+missing = []
+if 7 not in nal_types:   # SPS
+    missing.append("SPS (type 7)")
+if 8 not in nal_types:   # PPS
+    missing.append("PPS (type 8)")
+if 5 not in nal_types:   # IDR slice
+    missing.append("IDR slice (type 5)")
+
+if missing:
+    print("FAIL: missing NAL units: " + ", ".join(missing))
     sys.exit(1)
-if not pps:
-    print("FAIL: no PPS NAL unit found")
-    sys.exit(1)
-if not idr:
-    print("FAIL: no IDR slice found")
-    sys.exit(1)
-print(f"OK output is a valid H.264 stream ({len(data)} bytes, SPS/PPS/IDR present)")
+
+print(f"OK output is a valid H.264 stream "
+      f"({len(data)} bytes, {len(nal_types)} NAL types, SPS/PPS/IDR present)")
 PYEOF
     then
-        say "OK" "output verified as H.264 (SPS/PPS/IDR NAL units present)"
+        say "OK" "output verified as H.264 (SPS/PPS/IDR NAL units at valid boundaries)"
     else
         say "FAIL" "output is not a valid H.264 stream"
         FAILED=1

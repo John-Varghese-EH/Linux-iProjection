@@ -49,7 +49,7 @@ modules:
       - type: git
         url: https://code.videolan.org/videolan/x264.git
         commit: b35605ace3ddf7c1a5d67a2eb553f034aef41d55
-        tag: stable
+        branch: stable
 
   # gst-plugins-ugly (LGPL-2.1-or-later; x264 plugin becomes GPL when linked
   # against libx264). Only the x264enc element is enabled.
@@ -82,7 +82,7 @@ modules:
       build-args:
         - --share=network
     build-commands:
-      - pip3 install --prefix=/app --break-system-packages zeroconf Pillow pystray
+      - pip3 install --prefix=/app --break-system-packages zeroconf Pillow pystray distro
 
   - name: linux-iprojection
     buildsystem: simple
@@ -96,6 +96,9 @@ modules:
       # A raster PNG (rendered from the SVG) is shipped so the icon validates on
       # build hosts without a GdkPixbuf SVG loader (e.g. a bare NixOS install).
       - install -Dm644 data/icons/hicolor/128x128/apps/dev.linux_iprojection.LinuxIProjection.png /app/share/icons/hicolor/128x128/apps/dev.linux_iprojection.LinuxIProjection.png
+      # Ship the synthetic encode test so `flatpak-builder --run` and the
+      # installed app can self-verify the encoder without the host checkout.
+      - install -Dm755 tests/gstreamer/encode_test.sh /app/share/linux-iprojection/tests/encode_test.sh
     sources:
       - type: dir
         path: ../../
