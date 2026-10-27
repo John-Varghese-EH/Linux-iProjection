@@ -57,10 +57,27 @@ sudo apt-get install -f
 ```
 
 ### Universal Linux (Flatpak)
-Download the sandboxed `linux-iprojection-linux.flatpak` bundle from the [Releases](https://github.com/John-Varghese-EH/Linux-iProjection/releases) page and install it natively on any modern distribution:
+Download the sandboxed `linux-iprojection-nixos-x86_64.flatpak` bundle from the [Releases](https://github.com/John-Varghese-EH/Linux-iProjection/releases) page and install it natively on any modern distribution:
 ```bash
-flatpak install --user linux-iprojection-linux.flatpak
+flatpak install --user linux-iprojection-nixos-x86_64.flatpak
+flatpak run dev.linux_iprojection.LinuxIProjection
 ```
+
+The Flatpak bundles a GStreamer `x264enc` H.264 encoder plugin so screen
+casting works without relying on host GStreamer plugins. This is what makes it
+work out of the box on NixOS and other distributions with a minimal host
+GStreamer install.
+
+### NixOS
+On NixOS the recommended install is the Flatpak bundle above. For contributors,
+a reproducible development shell is provided via `flake.nix`:
+```bash
+nix develop        # Python + GTK/GStreamer bindings, pytest, flatpak-builder
+nix develop .#full # + host x264enc for running the encode test on the host
+```
+
+See [docs/FLATPAK_NIXOS.md](docs/FLATPAK_NIXOS.md) for the full build, install,
+test, and troubleshooting guide.
 
 ### Build from Source
 To run the application via Python or deploy a development environment:
