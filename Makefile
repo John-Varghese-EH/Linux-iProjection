@@ -29,7 +29,8 @@ appimage:
 
 flatpak:
 	@echo "Building Flatpak for linux-iprojection $(VERSION) …"
-	flatpak-builder --force-clean --repo=repo build-dir packaging/flatpak/$(APP_ID).yml
+	flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
+	flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build-dir packaging/flatpak/$(APP_ID).yml
 
 flatpak-bundle: flatpak
 	@echo "Packaging distributable .flatpak bundle …"
@@ -41,7 +42,7 @@ flatpak-bundle: flatpak
 flatpak-verify:
 	@echo "Verifying x264enc + synthetic encode inside the built sandbox …"
 	flatpak-builder --run build-dir packaging/flatpak/$(APP_ID).yml gst-inspect-1.0 x264enc
-	flatpak-builder --run build-dir packaging/flatpak/$(APP_ID).yml bash tests/gstreamer/encode_test.sh
+	flatpak-builder --run build-dir packaging/flatpak/$(APP_ID).yml bash /app/share/linux-iprojection/tests/encode_test.sh
 
 test-gstreamer:
 	@echo "Running synthetic H.264 encode test on the host …"

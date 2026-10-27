@@ -58,7 +58,7 @@ jobs:
 
     - name: Build Flatpak
       run: |
-        flatpak-builder --user --force-clean --repo=repo build-dir \
+        flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build-dir \
           packaging/flatpak/dev.linux_iprojection.LinuxIProjection.yml
 
     - name: Verify x264enc is bundled in the sandbox
@@ -69,7 +69,7 @@ jobs:
     - name: Run synthetic H.264 encode test in the sandbox
       run: |
         flatpak-builder --run build-dir packaging/flatpak/dev.linux_iprojection.LinuxIProjection.yml \
-          bash tests/gstreamer/encode_test.sh
+          bash /app/share/linux-iprojection/tests/encode_test.sh
 
     - name: Build the distributable bundle
       run: |

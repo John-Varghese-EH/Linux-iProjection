@@ -56,8 +56,9 @@
           ] ++ gstInputs;
 
           shellHook = ''
+            export PYTHONPATH="''${PWD}/src''${PYTHONPATH:+:''$PYTHONPATH}"
             echo "linux-iprojection development shell (nixos-unstable)"
-            echo "  run unit tests : make test"
+            echo "  run unit tests : make test      (or: pytest tests/)"
             echo "  run linter     : make lint"
             echo "  build flatpak  : make flatpak"
           '';
