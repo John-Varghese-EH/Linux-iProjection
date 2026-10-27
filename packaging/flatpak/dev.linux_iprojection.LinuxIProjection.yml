@@ -1,4 +1,19 @@
 # linux-iprojection - Built by John Varghese (J0X) | https://github.com/John-Varghese-EH
+#
+# Flatpak manifest for iProjection (Unofficial).
+#
+# Bundles a GStreamer x264 H.264 encoder plugin (libgstx264.so) built against
+# the exact GStreamer ABI of the target runtime. This is required because the
+# GNOME 48 runtime ships GStreamer 1.24.x core + base/good plugins but not
+# gst-plugins-ugly, so `x264enc` is unavailable out of the box and the app's
+# software fallback path previously failed with:
+#
+#     gst_parse_error: no element "x264enc" (1)
+#
+# The plugin is compiled with org.gnome.Sdk 48, whose GStreamer is
+# bit-identical to the one in org.gnome.Platform 48 (1.24.12), so the
+# resulting plugin links cleanly against the runtime. It is installed under
+# /app/lib/gstreamer-1.0, which is already in GStreamer's plugin search path.
 app-id: dev.linux_iprojection.LinuxIProjection
 runtime: org.gnome.Platform
 runtime-version: '48'
@@ -15,7 +30,52 @@ finish-args:
   - --talk-name=org.freedesktop.portal.Desktop
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.kde.StatusNotifierWatcher
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /share/man
+  - /share/doc
+  - "*.a"
+  - "*.la"
 modules:
+  # libx264 (GPL-2.0-or-later) — required by the gst-plugins-ugly x264 plugin.
+  - name: x264
+    buildsystem: simple
+    build-commands:
+      - ./configure --prefix=/app --disable-cli --enable-shared --disable-static --disable-opencl --enable-pic
+      - make -j"${FLATPAK_BUILDER_N_JOBS}"
+      - make install
+    sources:
+      - type: git
+        url: https://code.videolan.org/videolan/x264.git
+        commit: b35605ace3ddf7c1a5d67a2eb553f034aef41d55
+        tag: stable
+
+  # gst-plugins-ugly (LGPL-2.1-or-later; x264 plugin becomes GPL when linked
+  # against libx264). Only the x264enc element is enabled.
+  - name: gst-plugins-ugly-x264
+    buildsystem: meson
+    config-opts:
+      - -Dgpl=enabled
+      - -Dx264=enabled
+      - -Da52dec=disabled
+      - -Dcdio=disabled
+      - -Ddvdread=disabled
+      - -Dmpeg2dec=disabled
+      - -Dsidplay=disabled
+      - -Dasfdemux=disabled
+      - -Ddvdlpcmdec=disabled
+      - -Ddvdsub=disabled
+      - -Drealmedia=disabled
+      - -Dnls=disabled
+      - -Ddoc=disabled
+      - -Dtests=disabled
+      - -Dpackage-origin=linux-iprojection
+    sources:
+      - type: archive
+        url: https://gstreamer.freedesktop.org/src/gst-plugins-ugly/gst-plugins-ugly-1.24.12.tar.xz
+        sha256: 19ed6eef4ea1a742234fb35e2cdb107168595a4dd409a9fac0b7a16543eee78b
+
   - name: python3-dependencies
     buildsystem: simple
     build-options:
@@ -23,16 +83,19 @@ modules:
         - --share=network
     build-commands:
       - pip3 install --prefix=/app --break-system-packages zeroconf Pillow pystray
+
   - name: linux-iprojection
     buildsystem: simple
     build-options:
       build-args:
         - --share=network
     build-commands:
-      - pip3 install --no-build-isolation --prefix=/app --break-system-packages .
+      - pip3 install --no-build-isolation --no-deps --prefix=/app --break-system-packages .
       - install -Dm644 data/dev.linux_iprojection.LinuxIProjection.desktop /app/share/applications/dev.linux_iprojection.LinuxIProjection.desktop
       - install -Dm644 data/dev.linux_iprojection.LinuxIProjection.metainfo.xml /app/share/metainfo/dev.linux_iprojection.LinuxIProjection.metainfo.xml
-      - install -Dm644 data/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg /app/share/icons/hicolor/scalable/apps/dev.linux_iprojection.LinuxIProjection.svg
+      # A raster PNG (rendered from the SVG) is shipped so the icon validates on
+      # build hosts without a GdkPixbuf SVG loader (e.g. a bare NixOS install).
+      - install -Dm644 data/icons/hicolor/128x128/apps/dev.linux_iprojection.LinuxIProjection.png /app/share/icons/hicolor/128x128/apps/dev.linux_iprojection.LinuxIProjection.png
     sources:
       - type: dir
         path: ../../

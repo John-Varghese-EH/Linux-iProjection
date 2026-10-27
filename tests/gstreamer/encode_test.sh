@@ -43,13 +43,33 @@ else
     FAILED=1
 fi
 
-# 3. Verify the output is a valid H.264 stream ------------------------------
+# 3. Verify the output is a valid H.264 elementary stream --------------------
+#    h264parse emits length-prefixed AVCC by default, so rather than relying on
+#    typefind (which only matches Annex-B start codes) we check that the file
+#    contains the mandatory SPS (0x67) and PPS (0x68) NAL units of a real H.264
+#    encoded stream.
 if [ -s "$TMPDIR/out.h264" ]; then
-    TYPEINFO="$(gst-typefind-1.0 "$TMPDIR/out.h264" 2>/dev/null || true)"
-    if echo "$TYPEINFO" | grep -q "video/x-h264"; then
-        say "OK" "output recognized as video/x-h264"
+    if python3 - "$TMPDIR/out.h264" <<'PYEOF'
+import sys
+data = open(sys.argv[1], "rb").read()
+sps = b"\x67" in data[:4096]
+pps = b"\x68" in data[:4096]
+idr = b"\x65" in data
+if not sps:
+    print("FAIL: no SPS NAL unit found")
+    sys.exit(1)
+if not pps:
+    print("FAIL: no PPS NAL unit found")
+    sys.exit(1)
+if not idr:
+    print("FAIL: no IDR slice found")
+    sys.exit(1)
+print(f"OK output is a valid H.264 stream ({len(data)} bytes, SPS/PPS/IDR present)")
+PYEOF
+    then
+        say "OK" "output verified as H.264 (SPS/PPS/IDR NAL units present)"
     else
-        say "FAIL" "output not recognized as H.264: ${TYPEINFO}"
+        say "FAIL" "output is not a valid H.264 stream"
         FAILED=1
     fi
 fi
