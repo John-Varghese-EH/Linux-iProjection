@@ -7,6 +7,11 @@
 # GStreamer install and inside the Flatpak sandbox.
 set -uo pipefail
 
+# Ensure GStreamer discovers custom bundled plugins inside Flatpak (/app)
+if [ -d "/app/lib/gstreamer-1.0" ] || [ -d "/app/lib/x86_64-linux-gnu/gstreamer-1.0" ]; then
+    export GST_PLUGIN_PATH="/app/lib/gstreamer-1.0:/app/lib/x86_64-linux-gnu/gstreamer-1.0${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}"
+fi
+
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
@@ -14,11 +19,18 @@ FAILED=0
 
 say() { printf '%s %s\n' "$1" "$2"; }
 
-# 1. Encoder discovery ------------------------------------------------------
+# 1. Element discovery ------------------------------------------------------
 if gst-inspect-1.0 x264enc >/dev/null 2>&1; then
     say "OK" "gst-inspect-1.0 x264enc (encoder is discoverable)"
 else
     say "FAIL" "gst-inspect-1.0 x264enc (encoder is NOT available)"
+    FAILED=1
+fi
+
+if gst-inspect-1.0 h264parse >/dev/null 2>&1; then
+    say "OK" "gst-inspect-1.0 h264parse (parser is discoverable)"
+else
+    say "FAIL" "gst-inspect-1.0 h264parse (parser is NOT available - install gstreamer1.0-plugins-bad)"
     FAILED=1
 fi
 

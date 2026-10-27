@@ -39,6 +39,12 @@ _gst_initialized = False
 def _ensure_gst():
     global _gst_initialized
     if not _gst_initialized:
+        # If running inside Flatpak (/app), ensure custom plugins are discoverable
+        for p in ("/app/lib/gstreamer-1.0", "/app/lib/x86_64-linux-gnu/gstreamer-1.0"):
+            if os.path.isdir(p):
+                cur = os.environ.get("GST_PLUGIN_PATH", "")
+                if p not in cur.split(os.pathsep):
+                    os.environ["GST_PLUGIN_PATH"] = f"{p}{os.pathsep}{cur}" if cur else p
         Gst.init(None)
         _gst_initialized = True
 

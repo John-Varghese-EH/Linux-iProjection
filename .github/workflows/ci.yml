@@ -18,7 +18,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y python3-gi python3-gi-cairo gir1.2-gtk-4.0 libadwaita-1-dev \
           gir1.2-gstreamer-1.0 gir1.2-gst-plugins-base-1.0 \
-          gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly gstreamer1.0-tools \
+          gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-pipewire gstreamer1.0-tools \
           python3-pytest python3-pip python3-venv python3-distro xvfb
 
     - name: Install Python dependencies
@@ -30,9 +30,10 @@ jobs:
     - name: Check code formatting and linting
       run: .venv/bin/ruff check src/ tests/
 
-    - name: Verify GStreamer H.264 encoder discovery
+    - name: Verify GStreamer H.264 encoder and parser discovery
       run: |
         gst-inspect-1.0 x264enc >/dev/null 2>&1 && echo "x264enc OK" || { echo "x264enc MISSING"; exit 1; }
+        gst-inspect-1.0 h264parse >/dev/null 2>&1 && echo "h264parse OK" || { echo "h264parse MISSING"; exit 1; }
 
     - name: Run synthetic H.264 encode test
       run: bash tests/gstreamer/encode_test.sh
@@ -64,12 +65,12 @@ jobs:
     - name: Verify x264enc is bundled in the sandbox
       run: |
         flatpak-builder --run build-dir packaging/flatpak/dev.linux_iprojection.LinuxIProjection.yml \
-          gst-inspect-1.0 x264enc
+          env GST_PLUGIN_PATH=/app/lib/gstreamer-1.0:/app/lib/x86_64-linux-gnu/gstreamer-1.0 gst-inspect-1.0 x264enc
 
     - name: Run synthetic H.264 encode test in the sandbox
       run: |
         flatpak-builder --run build-dir packaging/flatpak/dev.linux_iprojection.LinuxIProjection.yml \
-          bash /app/share/linux-iprojection/tests/encode_test.sh
+          env GST_PLUGIN_PATH=/app/lib/gstreamer-1.0:/app/lib/x86_64-linux-gnu/gstreamer-1.0 bash /app/share/linux-iprojection/tests/encode_test.sh
 
     - name: Build the distributable bundle
       run: |

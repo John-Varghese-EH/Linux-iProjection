@@ -102,15 +102,30 @@ def save_config(config: AppConfig) -> None:
 class DeviceStore:
     def __init__(self):
         self.store_path = get_config_dir() / "devices.json"
+        self.last_load_succeeded: bool = True
         self.devices: Dict[str, dict] = self._load()
+
+    @property
+    def load_succeeded(self) -> bool:
+        """Whether the last device store load operation succeeded without I/O or decode errors."""
+        return self.last_load_succeeded
 
     def _load(self) -> Dict[str, dict]:
         if self.store_path.exists():
             try:
                 with open(self.store_path, "r") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        self.last_load_succeeded = True
+                        return data
+                    logging.error(f"Failed to load device store: expected JSON object, got {type(data).__name__}")
+                    self.last_load_succeeded = False
+                    return {}
             except (OSError, ValueError) as e:
+                self.last_load_succeeded = False
                 logging.error(f"Failed to load device store: {e}")
+                return {}
+        self.last_load_succeeded = True
         return {}
 
     def save(self):
@@ -157,6 +172,10 @@ class DeviceStore:
         """Clear all stored devices."""
         self.devices = {}
         self.save()
+
+    def clear_all(self) -> None:
+        """Alias for clear_devices."""
+        self.clear_devices()
 
     def get_device(self, name: str) -> Optional[dict]:
         return self.devices.get(name)

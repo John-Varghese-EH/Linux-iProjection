@@ -30,6 +30,13 @@ finish-args:
   - --talk-name=org.freedesktop.portal.Desktop
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.kde.StatusNotifierWatcher
+environment:
+  GST_PLUGIN_PATH: /app/lib/gstreamer-1.0:/app/lib/x86_64-linux-gnu/gstreamer-1.0
+  LD_LIBRARY_PATH: /app/lib:/app/lib/x86_64-linux-gnu
+build-options:
+  env:
+    GST_PLUGIN_PATH: /app/lib/gstreamer-1.0:/app/lib/x86_64-linux-gnu/gstreamer-1.0
+    LD_LIBRARY_PATH: /app/lib:/app/lib/x86_64-linux-gnu
 cleanup:
   - /include
   - /lib/pkgconfig
@@ -42,7 +49,7 @@ modules:
   - name: x264
     buildsystem: simple
     build-commands:
-      - ./configure --prefix=/app --disable-cli --enable-shared --disable-static --disable-opencl --enable-pic
+      - ./configure --prefix=/app --libdir=/app/lib --disable-cli --enable-shared --disable-static --disable-opencl --enable-pic
       - make -j"${FLATPAK_BUILDER_N_JOBS}"
       - make install
     sources:
@@ -56,6 +63,7 @@ modules:
   - name: gst-plugins-ugly-x264
     buildsystem: meson
     config-opts:
+      - --libdir=/app/lib
       - -Dgpl=enabled
       - -Dx264=enabled
       - -Da52dec=disabled
@@ -71,6 +79,9 @@ modules:
       - -Ddoc=disabled
       - -Dtests=disabled
       - -Dpackage-origin=linux-iprojection
+    post-install:
+      - mkdir -p /app/lib/gstreamer-1.0
+      - find /app -name "libgstx264.so" -exec cp {} /app/lib/gstreamer-1.0/ \;
     sources:
       - type: archive
         url: https://gstreamer.freedesktop.org/src/gst-plugins-ugly/gst-plugins-ugly-1.24.12.tar.xz

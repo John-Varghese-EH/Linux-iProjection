@@ -1542,6 +1542,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Also merge with persisted devices and map aliases
         persisted = self._device_store.load_devices()
+        persistence_verified = getattr(self._device_store, "last_load_succeeded", True)
         persisted_dict = {pd.get("address"): pd for pd in persisted}
         persisted_addrs = {
             _normalize_ip(pd.get("address") or pd.get("ip") or "") for pd in persisted
@@ -1565,9 +1566,10 @@ class MainWindow(Adw.ApplicationWindow):
             
             # Auto-discovery toast tracking: new is a projector that was
             # neither seen in this run nor saved in an earlier one.
+            # Suppress announcements when saved addresses could not be checked.
             if norm_addr not in self._known_device_addrs:
                 self._known_device_addrs.add(norm_addr)
-                if d.source != "persisted" and norm_addr not in persisted_addrs:
+                if persistence_verified and d.source != "persisted" and norm_addr not in persisted_addrs:
                     new_count += 1
                     new_name = d.alias or d.name or norm_addr
 
@@ -1596,13 +1598,16 @@ class MainWindow(Adw.ApplicationWindow):
         elif new_count > 1:
             self.show_toast(f"Discovered {new_count} new projectors")
 
-        # Save clean discovered devices
-        self._device_store.save_devices(
-            [
-                {"name": d.name, "address": d.address, "port": d.port, "alias": d.alias}
-                for d in clean_devices
-            ]
-        )
+        # Save clean discovered devices if persistence check succeeded
+        if persistence_verified:
+            self._device_store.save_devices(
+                [
+                    {"name": d.name, "address": d.address, "port": d.port, "alias": d.alias}
+                    for d in clean_devices
+                ]
+            )
+        else:
+            logging.warning("Skipping device-store save because previous load could not be verified")
 
         if clean_devices:
             self.sidebar_stack.set_visible_child_name("list")
