@@ -153,3 +153,45 @@ def test_arp_neighbors_skip_down_interfaces():
     with patch("builtins.open", mock_open(read_data=arp)), \
          patch("linux_iprojection.discovery._iface_is_up", side_effect=lambda name: name == "eth0"):
         assert _get_arp_neighbor_ips() == {"192.168.1.10"}
+
+
+def test_iface_is_up_carrier():
+    """Interface with carrier 0 is treated as down even if operstate is unknown or up."""
+    def fake_open(path, *args, **kwargs):
+        if "carrier" in str(path):
+            return mock_open(read_data="0\n")()
+        return mock_open(read_data="up\n")()
+
+    with patch("builtins.open", side_effect=fake_open):
+        assert _iface_is_up("eth0") is False
+
+
+def test_arp_neighbors_filtered_to_active_interfaces():
+    """Cached ARP entries on inactive or disconnected subnets are filtered out."""
+    arp = (
+        "IP address       HW type     Flags       HW address            Mask     Device\n"
+        "192.168.1.10     0x1         0x2         00:11:22:33:44:55     *        eth0\n"
+        "10.0.0.20        0x1         0x2         00:11:22:33:44:66     *        eth1\n"
+    )
+    with patch("builtins.open", mock_open(read_data=arp)), \
+         patch("linux_iprojection.discovery._iface_is_up", return_value=True):
+        # Without filter, both are returned if up
+        assert _get_arp_neighbor_ips() == {"192.168.1.10", "10.0.0.20"}
+
+        # Filtered to 192.168.1.0/24 active network
+        net = [ipaddress.IPv4Network("192.168.1.0/24")]
+        assert _get_arp_neighbor_ips(active_interfaces=net) == {"192.168.1.10"}
+
+
+@pytest.mark.asyncio
+async def test_discover_by_scan_filters_arp_to_active_networks():
+    """discover_by_scan should only probe ARP entries matching active networks."""
+    with patch("linux_iprojection.discovery._get_arp_neighbor_ips", return_value={"10.0.0.5", "192.168.1.50"}), \
+         patch("linux_iprojection.discovery._local_ipv4_networks", return_value=[ipaddress.IPv4Network("192.168.1.0/24")]), \
+         patch("linux_iprojection.discovery._probe", new_callable=AsyncMock) as mock_probe:
+        mock_probe.return_value = None
+        await discover_by_scan(ports=[3629])
+        probed_ips = {call.args[0] for call in mock_probe.call_args_list}
+        assert "10.0.0.5" not in probed_ips
+        assert "192.168.1.50" in probed_ips
+

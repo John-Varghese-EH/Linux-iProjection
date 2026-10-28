@@ -166,11 +166,20 @@ def _iface_is_up(name: str) -> bool:
     """
     try:
         with open(f"/sys/class/net/{name}/operstate", encoding="ascii") as f:
-            state = f.read().strip()
+            state = f.read().strip().lower()
+            if state in ("down", "lowerlayerdown", "notpresent", "dormant"):
+                return False
     except OSError:
-        return True  # can't tell - don't exclude it
-    # "dormant" links wait for something else, such as 802.1X authentication.
-    return state not in ("down", "lowerlayerdown", "notpresent", "dormant")
+        pass
+
+    try:
+        with open(f"/sys/class/net/{name}/carrier", encoding="ascii") as f:
+            if f.read().strip() == "0":
+                return False
+    except OSError:
+        pass
+
+    return True
 
 
 def _active_ipv4_interfaces() -> list[ipaddress.IPv4Interface]:
@@ -220,7 +229,9 @@ def _local_ipv4_networks() -> list[ipaddress.IPv4Network]:
     return nets
 
 
-def _get_arp_neighbor_ips() -> set[str]:
+def _get_arp_neighbor_ips(
+    active_interfaces: list[ipaddress.IPv4Interface] | list[ipaddress.IPv4Network] | set[str] | None = None,
+) -> set[str]:
     """Retrieve active neighbor IPs from the ARP table for fast direct-link discovery."""
     ips = set()
     try:
@@ -234,7 +245,21 @@ def _get_arp_neighbor_ips() -> set[str]:
                 if len(parts) >= 4 and parts[3] not in ("00:00:00:00:00:00", "00:00:00:00:00:00:00:00"):
                     ip_cand = parts[0].strip()
                     try:
-                        ipaddress.IPv4Address(ip_cand)
+                        ip_obj = ipaddress.IPv4Address(ip_cand)
+                        if active_interfaces is not None:
+                            matched = False
+                            for item in active_interfaces:
+                                if isinstance(item, ipaddress.IPv4Network) and ip_obj in item:
+                                    matched = True
+                                    break
+                                elif isinstance(item, ipaddress.IPv4Interface) and ip_obj in item.network:
+                                    matched = True
+                                    break
+                                elif isinstance(item, str) and len(parts) >= 6 and parts[5].strip() == item:
+                                    matched = True
+                                    break
+                            if not matched:
+                                continue
                         ips.add(ip_cand)
                     except ValueError:
                         pass
@@ -277,15 +302,24 @@ async def discover_by_scan(
     tasks = []
     seen_ips = set()
 
-    # Strategy 1: Fast ARP neighbor sweep (critical for direct link-local / LAN cables)
-    arp_ips = _get_arp_neighbor_ips()
+    # Determine active networks
+    networks = [network] if network else _local_ipv4_networks()
+
+    # Strategy 1: Fast ARP neighbor sweep on active networks
+    # Filter ARP neighbors to active networks so disconnected links aren't probed
+    arp_ips = _get_arp_neighbor_ips(active_interfaces=networks)
     for ip in arp_ips:
+        try:
+            ip_obj = ipaddress.IPv4Address(ip)
+            if not any(ip_obj in net for net in networks):
+                continue
+        except ValueError:
+            continue
         seen_ips.add(ip)
         for port in ports:
             tasks.append(_probe(ip, port, sem))
 
     # Strategy 2: Subnet sweep
-    networks = [network] if network else _local_ipv4_networks()
     for net in networks:
         for host in net.hosts():
             host_str = str(host)
