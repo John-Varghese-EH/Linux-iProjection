@@ -137,7 +137,15 @@ class _AsyncCollectingListener:
 async def discover_mdns(timeout: float = 3.0) -> list[DiscoveredDevice]:
     results: list[DiscoveredDevice] = []
     try:
-        async with AsyncZeroconf() as azc:
+        try:
+            interfaces = [str(i.ip) for i in _active_ipv4_interfaces()]
+        except Exception as e:
+            log.debug("Interface enumeration failed: %s", e)
+            interfaces = []
+        # Only bind to interfaces that are up; zeroconf's default uses every
+        # interface with an address, which logs ENETUNREACH for down links.
+        zc_kwargs = {"interfaces": interfaces} if interfaces else {}
+        async with AsyncZeroconf(**zc_kwargs) as azc:
             listener = _AsyncCollectingListener(azc, results)
             browsers = [
                 AsyncServiceBrowser(azc.zeroconf, svc, listener) for svc in SERVICE_TYPES
@@ -150,30 +158,53 @@ async def discover_mdns(timeout: float = 3.0) -> list[DiscoveredDevice]:
     return results
 
 
+def _iface_is_up(name: str) -> bool:
+    """True unless the kernel reports the interface's operational state as down.
+
+    Interfaces without carrier (e.g. an unplugged Ethernet port) keep their
+    addresses but report "down"; sending to them fails with ENETUNREACH.
+    """
+    try:
+        with open(f"/sys/class/net/{name}/operstate", encoding="ascii") as f:
+            state = f.read().strip()
+    except OSError:
+        return True  # can't tell - don't exclude it
+    # "dormant" links wait for something else, such as 802.1X authentication.
+    return state not in ("down", "lowerlayerdown", "notpresent", "dormant")
+
+
+def _active_ipv4_interfaces() -> list[ipaddress.IPv4Interface]:
+    """Non-loopback IPv4 addresses of this host's interfaces that are up."""
+    import ifaddr  # dependency of zeroconf
+
+    result: list[ipaddress.IPv4Interface] = []
+    for adapter in ifaddr.get_adapters():
+        if not _iface_is_up(adapter.name):
+            log.debug("Skipping interface %s: not up", adapter.name)
+            continue
+        for ip in adapter.ips:
+            if ip.is_IPv4 and not ip.ip.startswith("127."):
+                try:
+                    result.append(ipaddress.IPv4Interface(f"{ip.ip}/{ip.network_prefix}"))
+                except ValueError:
+                    pass
+    return result
+
+
 def _local_ipv4_networks() -> list[ipaddress.IPv4Network]:
     """Find this host's active IPv4 /24 subnets across all network interfaces."""
     nets: list[ipaddress.IPv4Network] = []
     try:
-        import psutil
-
-        for iface_name, addrs in psutil.net_if_addrs().items():
-            for addr in addrs:
-                if addr.family == socket.AF_INET and not addr.address.startswith("127."):
-                    ip = addr.address
-                    netmask = addr.netmask or "255.255.255.0"
-                    try:
-                        iface = ipaddress.IPv4Interface(f"{ip}/{netmask}")
-                        # Constrain large networks (e.g. link-local /16) to /24 around host to keep scan fast
-                        if iface.network.prefixlen < 24 or iface.network.prefixlen == 32:
-                            sub = ipaddress.IPv4Network(f"{ip}/24", strict=False)
-                            if sub not in nets:
-                                nets.append(sub)
-                        elif iface.network not in nets:
-                            nets.append(iface.network)
-                    except Exception:
-                        pass
-    except ImportError:
-        pass
+        for iface in _active_ipv4_interfaces():
+            # Constrain large networks (e.g. link-local /16) to /24 around host to keep scan fast
+            if iface.network.prefixlen < 24 or iface.network.prefixlen == 32:
+                sub = ipaddress.IPv4Network(f"{iface.ip}/24", strict=False)
+                if sub not in nets:
+                    nets.append(sub)
+            elif iface.network not in nets:
+                nets.append(iface.network)
+    except Exception as e:
+        log.debug("Interface enumeration failed: %s", e)
 
     if not nets:
         try:
@@ -196,6 +227,10 @@ def _get_arp_neighbor_ips() -> set[str]:
         with open("/proc/net/arp", "r", encoding="utf-8") as f:
             for line in f.readlines()[1:]:
                 parts = line.split()
+                # The kernel drops dynamic entries of a link that goes down,
+                # but not static ones.
+                if len(parts) >= 6 and not _iface_is_up(parts[5]):
+                    continue
                 if len(parts) >= 4 and parts[3] not in ("00:00:00:00:00:00", "00:00:00:00:00:00:00:00"):
                     ip_cand = parts[0].strip()
                     try:
