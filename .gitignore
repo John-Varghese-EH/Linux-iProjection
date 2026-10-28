@@ -61,3 +61,6 @@ scratch*.py
 test_about*.py
 test_icon.py
 /reference
+windows.md
+implementation_plan.md
+
