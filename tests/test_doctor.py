@@ -115,3 +115,61 @@ def test_run_diagnostics_live():
     assert report.display_server in ("Wayland", "X11", "Headless/Unknown")
     assert len(report.checks) > 0
     assert report.overall_status in ("ok", "warning", "error")
+    # Verify compatibility properties expected by UI dialog
+    assert hasattr(report, "missing_packages")
+    assert hasattr(report, "issues")
+    assert hasattr(report, "fix_command")
+
+    for check in report.checks:
+        assert hasattr(check, "title")
+        assert hasattr(check, "remediation")
+        assert hasattr(check, "severity")
+        assert hasattr(check, "passed")
+        assert check.title == check.name
+        assert check.severity == check.status
+        assert check.passed == (check.status == "ok")
+
+
+def test_doctor_report_compatibility_properties():
+    item_ok = CheckItem(
+        category="GStreamer",
+        name="test_item",
+        status="ok",
+        message="Item is ok",
+    )
+    assert item_ok.title == "test_item"
+    assert item_ok.remediation == "Item is ok"
+    assert item_ok.severity == "ok"
+    assert item_ok.passed is True
+
+    item_err = CheckItem(
+        category="GStreamer",
+        name="err_item",
+        status="error",
+        message="Item has error",
+        remedy="Run fix command",
+    )
+    assert item_err.title == "err_item"
+    assert item_err.remediation == "Run fix command"
+    assert item_err.severity == "error"
+    assert item_err.passed is False
+
+    pkg_item = CheckItem(
+        category="Package Resolution",
+        name="Recommended Fix Command",
+        status="warning",
+        message="Install packages",
+        remedy="sudo apt install gst-plugins-ugly",
+    )
+
+    report = DoctorReport(
+        os_name="Linux",
+        distro="Ubuntu",
+        desktop_session="GNOME",
+        display_server="Wayland",
+        checks=[item_ok, item_err, pkg_item],
+    )
+
+    assert report.fix_command == "sudo apt install gst-plugins-ugly"
+    assert report.missing_packages == ["sudo apt install gst-plugins-ugly"]
+    assert report.issues == [item_err]

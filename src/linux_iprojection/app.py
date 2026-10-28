@@ -337,9 +337,11 @@ class MainWindow(Adw.ApplicationWindow):
             primary=True,
         )
         menu = Gio.Menu()
+        menu.append("System Diagnostics", "app.diagnostics")
         menu.append("Clear Saved Devices", "app.clear_devices")
         menu.append("Preferences", "app.preferences")
         menu.append("Keyboard Shortcuts", "app.shortcuts")
+        menu.append("Report an Issue", "app.report_issue")
         menu.append("About iProjection", "app.about")
         menu_btn.set_menu_model(menu)
         content_header.pack_end(menu_btn)
@@ -975,9 +977,25 @@ class MainWindow(Adw.ApplicationWindow):
         refresh_action.connect("activate", lambda *_: self._refresh_status())
         app.add_action(refresh_action)
 
+        diag_action = Gio.SimpleAction.new("diagnostics", None)
+        diag_action.connect("activate", lambda *_: self._show_doctor_dialog(self))
+        app.add_action(diag_action)
+
+        report_issue_action = Gio.SimpleAction.new("report_issue", None)
+        report_issue_action.connect("activate", self._on_report_issue)
+        app.add_action(report_issue_action)
+
         quit_action = Gio.SimpleAction.new("quit", None)
         quit_action.connect("activate", self._on_quit_action)
         app.add_action(quit_action)
+
+    def _on_report_issue(self, *_args) -> None:
+        url = "https://github.com/John-Varghese-EH/Linux-iProjection/issues/new"
+        try:
+            Gio.AppInfo.launch_default_for_uri(url, None)
+        except Exception as e:
+            log.error(f"Failed to open browser for issue report: {e}")
+            self.show_toast("Issue tracker: https://github.com/John-Varghese-EH/Linux-iProjection/issues")
 
     def _on_quit_action(self, *_args):
         if self._tray_process:
@@ -1116,6 +1134,7 @@ class MainWindow(Adw.ApplicationWindow):
                 "GitHub: https://github.com/John-Varghese-EH"
             ],
         )
+        about.add_link("Report an Issue", "https://github.com/John-Varghese-EH/Linux-iProjection/issues/new")
         about.add_link("View Application Logs", f"file://{log_path}")
         about.add_link("Connect on LinkedIn", "https://www.linkedin.com/in/John--Varghese")
         about.add_link("Follow on GitHub", "https://github.com/John-Varghese-EH")
@@ -1309,33 +1328,44 @@ class MainWindow(Adw.ApplicationWindow):
         summary_group.add(status_row)
         page.add(summary_group)
 
-        if report.missing_packages or report.issues:
+        missing_pkgs = getattr(report, "missing_packages", [])
+        issues = getattr(report, "issues", [])
+        fix_cmd = getattr(report, "fix_command", "")
+
+        if missing_pkgs or issues:
             issues_group = Adw.PreferencesGroup(
                 title="Recommended Action",
-                description="Install missing system packages to enable all features",
+                description="Install missing system packages or address warnings to enable all features",
             )
-            for issue in report.issues:
+            for issue in issues:
                 row = Adw.ActionRow(
-                    title=issue.title,
-                    subtitle=issue.remediation,
+                    title=getattr(issue, "title", getattr(issue, "name", "Issue")),
+                    subtitle=getattr(issue, "remediation", getattr(issue, "remedy", getattr(issue, "message", ""))),
                 )
+                severity = getattr(issue, "severity", getattr(issue, "status", "warning"))
                 icon = Gtk.Image.new_from_icon_name(
-                    "dialog-error-symbolic" if issue.severity == "error" else "dialog-warning-symbolic"
+                    "dialog-error-symbolic" if severity == "error" else "dialog-warning-symbolic"
                 )
                 row.add_prefix(icon)
                 issues_group.add(row)
 
-            if report.fix_command:
+            if fix_cmd:
                 cmd_row = Adw.ActionRow(
                     title="Install Command",
-                    subtitle=report.fix_command,
+                    subtitle=fix_cmd,
                 )
                 copy_btn = Gtk.Button(label="Copy Command", valign=Gtk.Align.CENTER)
                 copy_btn.add_css_class("suggested-action")
 
                 def _copy_cmd(_b):
-                    clipboard = self.get_clipboard()
-                    clipboard.set(report.fix_command)
+                    try:
+                        clipboard = self.get_clipboard()
+                        clipboard.set(fix_cmd)
+                    except Exception:
+                        from gi.repository import Gdk
+                        display = Gdk.Display.get_default()
+                        if display:
+                            display.get_clipboard().set(fix_cmd)
                     self.show_toast("Command copied to clipboard")
 
                 copy_btn.connect("clicked", _copy_cmd)
@@ -1346,14 +1376,19 @@ class MainWindow(Adw.ApplicationWindow):
 
         checks_group = Adw.PreferencesGroup(title="Subsystem Checks")
         for check in report.checks:
+            desc = check.details if check.details else check.message
+            if check.remedy and check.status != "ok":
+                desc = f"{desc} • {check.remedy}"
             row = Adw.ActionRow(
-                title=check.name,
-                subtitle=check.details,
+                title=getattr(check, "title", check.name),
+                subtitle=desc,
             )
+            passed = getattr(check, "passed", check.status == "ok")
+            severity = getattr(check, "severity", check.status)
             check_icon = (
                 "emblem-ok-symbolic"
-                if check.passed
-                else ("dialog-warning-symbolic" if check.severity == "warning" else "dialog-error-symbolic")
+                if passed
+                else ("dialog-warning-symbolic" if severity == "warning" else "dialog-error-symbolic")
             )
             row.add_prefix(Gtk.Image.new_from_icon_name(check_icon))
             checks_group.add(row)

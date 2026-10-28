@@ -28,6 +28,22 @@ class CheckItem:
     details: str = ""
     remedy: str = ""
 
+    @property
+    def title(self) -> str:
+        return self.name
+
+    @property
+    def remediation(self) -> str:
+        return self.remedy or self.message
+
+    @property
+    def severity(self) -> str:
+        return self.status
+
+    @property
+    def passed(self) -> bool:
+        return self.status == "ok"
+
 
 @dataclass
 class DoctorReport:
@@ -72,6 +88,13 @@ class DoctorReport:
             if c.remedy and c.category == "Package Resolution":
                 return c.remedy
         return ""
+
+    @property
+    def missing_packages(self) -> list[str]:
+        cmd = self.fix_command
+        if not cmd:
+            return []
+        return [cmd]
 
 
 def detect_distro() -> tuple[str, str]:

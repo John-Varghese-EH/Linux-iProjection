@@ -86,6 +86,24 @@ def show_crash_dialog(exc_type, exc_value, exc_traceback):
         sys.exit(1)
 
     # Handle both old and new Adwaita dialog APIs
+    def _copy_to_clipboard():
+        copied = False
+        if window:
+            try:
+                cb = window.get_clipboard()
+                cb.set(report_md)
+                copied = True
+            except Exception:
+                pass
+        if not copied:
+            try:
+                from gi.repository import Gdk
+                disp = Gdk.Display.get_default()
+                if disp:
+                    disp.get_clipboard().set(report_md)
+            except Exception:
+                pass
+
     if hasattr(Adw, "AlertDialog"):
         dialog = Adw.AlertDialog.new(heading=title, body=body)
         dialog.add_response("close", "Close")
@@ -95,16 +113,14 @@ def show_crash_dialog(exc_type, exc_value, exc_traceback):
 
         def on_response(dlg, response, *args):
             if response == "copy":
-                if window:
-                    cb = window.get_clipboard()
-                    cb.set(report_md)
+                _copy_to_clipboard()
             elif response == "report":
                 encoded_body = urllib.parse.quote(report_md)
                 encoded_title = urllib.parse.quote(f"Crash: {exc_type.__name__} - {str(exc_value)}")
                 url = f"{GITHUB_ISSUES_URL}?title={encoded_title}&body={encoded_body}&labels=bug,crash"
                 Gio.AppInfo.launch_default_for_uri(url, None)
             
-            # Since this is a fatal crash, we should probably exit
+            # Since this is a fatal crash, exit on response
             sys.exit(1)
 
         dialog.choose(window, None, on_response)
@@ -121,9 +137,7 @@ def show_crash_dialog(exc_type, exc_value, exc_traceback):
 
         def on_response(dlg, response):
             if response == "copy":
-                if window:
-                    cb = window.get_clipboard()
-                    cb.set(report_md)
+                _copy_to_clipboard()
             elif response == "report":
                 encoded_body = urllib.parse.quote(report_md)
                 encoded_title = urllib.parse.quote(f"Crash: {exc_type.__name__} - {str(exc_value)}")
