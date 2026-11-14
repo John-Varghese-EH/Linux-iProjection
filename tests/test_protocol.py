@@ -4,6 +4,8 @@
 Uses the fake TCP server from conftest.py - no real projector needed.
 """
 
+import asyncio
+
 import pytest
 
 from linux_iprojection.protocol import (
@@ -12,6 +14,100 @@ from linux_iprojection.protocol import (
     ProjectorUnreachableError,
     Source,
 )
+
+
+@pytest.fixture
+async def handshake_connection(mocker, monkeypatch):
+    reader = asyncio.StreamReader()
+    writer = mocker.Mock(spec=asyncio.StreamWriter)
+    writer.drain = mocker.AsyncMock()
+    writer.wait_closed = mocker.AsyncMock()
+    mocker.patch("asyncio.open_connection", return_value=(reader, writer))
+    monkeypatch.setattr("linux_iprojection.protocol.MAX_RETRIES", 1)
+    return reader, writer
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reply", [
+    b"ESC/VP.net\x10\x03\x00\x00\x20\x00",
+    bytes.fromhex("45 53 43 2f 56 50 2e 6e 65 74 10 03 00 00 20 00"),
+])
+async def test_connect_success_then_hdmi1(handshake_connection, reply):
+    reader, writer = handshake_connection
+    reader.feed_data(reply)
+    async with EscVpNetClient("127.0.0.1") as client:
+        assert client.connected
+        writer.write.assert_called_once_with(b"ESC/VP.net\x10\x03\x00\x00\x00\x00")
+        reader.feed_data(b":")
+        await client.set_source(Source.HDMI1)
+        writer.write.assert_called_with(b"SOURCE 30\r")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("split_at", [1, 10, 14, 15])
+async def test_fragmented_connect_response(handshake_connection, split_at):
+    reader, _ = handshake_connection
+    reply = b"ESC/VP.net\x10\x03\x00\x00\x20\x00"
+    reader.feed_data(reply[:split_at])
+    client = EscVpNetClient("127.0.0.1")
+    connecting = asyncio.create_task(client.connect())
+    try:
+        await asyncio.sleep(0.01)
+        assert not connecting.done()
+        assert not client.connected
+        reader.feed_data(reply[split_at:])
+        await connecting
+        assert client.connected
+    finally:
+        connecting.cancel()
+        await asyncio.gather(connecting, return_exceptions=True)
+        await client.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("offset,value", [
+    (0, 0), (10, 0x11), (11, 1), (12, 1), (13, 1), (15, 1),
+    *[(14, status) for status in (0, 0x40, 0x41, 0x43, 0x45, 0x53, 0x55, 0xFF)],
+])
+async def test_invalid_connect_response(handshake_connection, offset, value):
+    reader, writer = handshake_connection
+    reply = bytearray(b"ESC/VP.net\x10\x03\x00\x00\x20\x00")
+    reply[offset] = value
+    reader.feed_data(reply)
+    client = EscVpNetClient("127.0.0.1")
+    with pytest.raises(ProjectorError, match="Unexpected handshake"):
+        await client.connect()
+    assert not client.connected
+    writer.close.assert_called_once()
+    writer.write.assert_called_once_with(b"ESC/VP.net\x10\x03\x00\x00\x00\x00")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("length", [0, 1, 10, 15])
+async def test_truncated_connect_response(handshake_connection, length):
+    reader, writer = handshake_connection
+    reader.feed_data(b"ESC/VP.net\x10\x03\x00\x00\x20\x00"[:length])
+    reader.feed_eof()
+    client = EscVpNetClient("127.0.0.1")
+    with pytest.raises(ProjectorError, match="Handshake .* failed"):
+        await client.connect()
+    assert not client.connected
+    writer.close.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stage", ["connection", "handshake"])
+async def test_connect_timeout(handshake_connection, monkeypatch, mocker, stage):
+    _, writer = handshake_connection
+    monkeypatch.setattr("linux_iprojection.protocol.CONNECT_TIMEOUT", 0.01)
+    if stage == "connection":
+        mocker.patch("asyncio.open_connection", side_effect=asyncio.TimeoutError)
+    client = EscVpNetClient("127.0.0.1")
+    with pytest.raises(ProjectorError, match="Could not reach|Handshake .* failed"):
+        await client.connect()
+    assert not client.connected
+    if stage == "handshake":
+        writer.close.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -300,7 +396,7 @@ async def test_escvp_buffer_non_challenge_bytes():
         # Read handshake
         await reader.readexactly(16)
         # Send handshake reply + immediately a prompt ':'
-        writer.write(b"ESC/VP.net\x10\x03\x00\x00\x00\x00:")
+        writer.write(b"ESC/VP.net\x10\x03\x00\x00\x20\x00:")
         await writer.drain()
 
         # Read command
@@ -336,7 +432,7 @@ async def test_escvp_password_auth_flow():
     async def handle_client(reader, writer):
         await reader.readexactly(16)
         # Send handshake + challenge
-        writer.write(b"ESC/VP.net\x10\x03\x00\x00\x00\x00")
+        writer.write(b"ESC/VP.net\x10\x03\x00\x00\x20\x00")
         writer.write(b"ESCA" + salt)
         await writer.drain()
 
@@ -373,7 +469,7 @@ async def test_escvp_password_required_error():
 
     async def handle_client(reader, writer):
         await reader.readexactly(16)
-        writer.write(b"ESC/VP.net\x10\x03\x00\x00\x00\x00")
+        writer.write(b"ESC/VP.net\x10\x03\x00\x00\x20\x00")
         writer.write(b"ESCA" + salt)
         await writer.drain()
         writer.close()
