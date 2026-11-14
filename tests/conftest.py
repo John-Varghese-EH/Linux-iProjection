@@ -13,7 +13,7 @@ class FakeEscVpServer:
     real projector hardware.
     """
 
-    HANDSHAKE = b"ESC/VP.net\x10\x03\x00\x00\x00\x00"
+    HANDSHAKE = b"ESC/VP.net\x10\x03\x00\x00\x20\x00"
 
     def __init__(self, host: str = "127.0.0.1", port: int = 0):
         self.host = host

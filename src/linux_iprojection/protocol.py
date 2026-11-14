@@ -25,6 +25,7 @@ log = logging.getLogger(__name__)
 
 ESCVP_PORT = 3629
 HANDSHAKE = b"ESC/VP.net\x10\x03\x00\x00\x00\x00"
+HANDSHAKE_REPLY = b"ESC/VP.net\x10\x03\x00\x00\x20\x00"
 CMD_TERMINATOR = b"\r"
 PROMPT = b":"
 CONNECT_TIMEOUT = 5.0
@@ -241,7 +242,8 @@ class EscVpNetClient:
         except (asyncio.IncompleteReadError, asyncio.TimeoutError) as e:
             raise ProjectorError(f"Handshake with {self.host} failed: {e}") from e
 
-        if not reply.startswith(b"ESC/VP.net\x10\x03"):
+        # CONNECT replies use status 0x20 (OK), not the request's 0x00 (section 5.6.3).
+        if reply != HANDSHAKE_REPLY:
             raise ProjectorError(f"Unexpected handshake reply from {self.host}: {reply!r}")
 
         log.debug("Connected and handshook with %s:%s", self.host, self.port)
@@ -282,6 +284,7 @@ class EscVpNetClient:
                 await self._attempt_connect()
                 return
             except ProjectorError as e:
+                await self.close()
                 retries += 1
                 if retries == MAX_RETRIES:
                     self._connected = False

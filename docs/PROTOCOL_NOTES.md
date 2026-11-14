@@ -7,8 +7,9 @@ Documentation compiled directly from Epson network protocol specifications and p
 ### Connection
 - TCP port 3629
 - 16-byte handshake: client sends `ESC/VP.net\x10\x03\x00\x00\x00\x00`
-- Projector echoes back the exact same 16 bytes
-- After handshake, projector sends `:` prompt
+- Successful CONNECT response: `ESC/VP.net\x10\x03\x00\x00\x20\x00` (status `0x20`, no additional headers)
+- Commands then use the same TCP connection; no initial `:` prompt is required
+- See [Epson ESC/VP.net Software Development Manual](https://www.epson.com.au/d/pub/epson/techtips/escvp.netmanual_e_f.pdf), sections 5.4.1 and 5.6.3
 
 ### Command Format
 - ASCII text commands terminated by `\r` (carriage return)
